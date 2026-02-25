@@ -13,7 +13,7 @@ export default function VerseCard({ verse }: VerseCardProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`"${verse.text}" - ${verse.ref}`);
+    navigator.clipboard.writeText(`"${verse.text}" — ${verse.ref}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -23,32 +23,69 @@ export default function VerseCard({ verse }: VerseCardProps) {
       initial={{ opacity: 0, y: 10 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className={`relative border rounded-xl p-4 shadow-xl group transition-all duration-300 ${theme === 'dark' ? 'bg-brand-gradient-dark border-white/10 hover:border-emerald-500/30' : 'bg-brand-gradient-light border-slate-200 hover:border-indigo-500/30'}`}
+      className="relative rounded-xl overflow-hidden group"
+      style={{
+        background: theme === "dark" ? "var(--bg-card)" : "var(--bg-card)",
+        border: "1px solid var(--border-card)",
+        boxShadow: "var(--glow-card)",
+      }}
     >
-      <div className="absolute top-3 right-3 opacity-5 group-hover:opacity-10 transition-opacity">
-        <Quote className={`w-6 h-6 rotate-180 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`} />
-      </div>
+      {/* Top accent bar com degradê azul */}
+      <div
+        className="h-[3px] w-full"
+        style={{
+          background: "linear-gradient(90deg, #0b3d91 0%, #1e3a8a 50%, #2563eb 100%)",
+        }}
+      />
 
-      <div className="space-y-2">
-        <p className={`text-base font-serif italic leading-relaxed pr-4 transition-colors duration-300 ${theme === 'dark' ? 'text-white/90' : 'text-slate-800'}`}>
+      <div className="p-4 space-y-2">
+        {/* Quote icon decorativo */}
+        <div className="absolute top-5 right-4 opacity-[0.06] group-hover:opacity-[0.1] transition-opacity duration-300">
+          <Quote
+            className="w-7 h-7 rotate-180"
+            style={{ color: "#2563eb" }}
+          />
+        </div>
+
+        {/* Texto do versículo */}
+        <p
+          className="text-base font-serif italic leading-relaxed pr-6 transition-colors duration-200"
+          style={{ color: "var(--text-primary)" }}
+        >
           "{verse.text}"
         </p>
-        
+
+        {/* Referência + Copiar */}
         <div className="flex items-center justify-between pt-1">
-          <span className={`text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-300 ${theme === 'dark' ? 'text-emerald-400' : 'text-indigo-600'}`}>
+          <span
+            className="text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200"
+            style={{ color: "var(--verse-ref)" }}
+          >
             {verse.ref}
           </span>
-          
+
           <button
             onClick={handleCopy}
-            className={`p-1.5 rounded-lg transition-all active:scale-90 ${
-              copied 
-                ? (theme === 'dark' ? "bg-emerald-500 text-white" : "bg-indigo-600 text-white")
-                : (theme === 'dark' ? "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white border border-white/10" : "bg-black/5 text-slate-400 hover:bg-black/10 hover:text-slate-600 border border-black/5")
-            }`}
+            className="p-1.5 rounded-lg transition-all duration-200 active:scale-90"
+            style={
+              copied
+                ? {
+                  background: "linear-gradient(135deg, #0b3d91, #2563eb)",
+                  color: "#fff",
+                }
+                : {
+                  background: "var(--bg-input)",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border-input)",
+                }
+            }
             title="Copiar Versículo"
           >
-            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
           </button>
         </div>
       </div>

@@ -1,51 +1,117 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, BookOpen } from "lucide-react";
-import { getDailyVerses } from "../utils/dailyVerses";
+import { Verse } from "../data/verses";
 import VerseCard from "./VerseCard";
 import { useTheme } from "../context/ThemeContext";
+import { supabaseService } from "../services/supabaseService";
 
 export default function DailyVerses() {
   const { theme } = useTheme();
-  const dailyVerses = useMemo(() => getDailyVerses(), []);
+  const [verses, setVerses] = useState<Verse[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const next = () => setCurrentIndex((prev) => (prev + 1) % dailyVerses.length);
-  const prev = () => setCurrentIndex((prev) => (prev - 1 + dailyVerses.length) % dailyVerses.length);
+  useEffect(() => {
+    async function fetchVerses() {
+      const daily = await supabaseService.getDailyVerses();
+      setVerses(daily);
+      setLoading(false);
+    }
+    fetchVerses();
+  }, []);
 
-  return (
-    <div className="w-full space-y-3">
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <div className={`p-1 rounded-lg border transition-all duration-300 ${theme === 'dark' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-indigo-500/10 border-indigo-500/20'}`}>
-            <BookOpen className={`w-3.5 h-3.5 ${theme === 'dark' ? 'text-emerald-400' : 'text-indigo-600'}`} />
+  const next = () => setCurrentIndex((p) => (p + 1) % verses.length);
+  const prev = () => setCurrentIndex((p) => (p - 1 + verses.length) % verses.length);
+
+  /* ── LOADING SKELETON ── */
+  if (loading) {
+    return (
+      <div className="w-full space-y-3">
+        <div className="flex items-center gap-2 px-1">
+          <div
+            className="p-1 rounded-lg border"
+            style={{ background: "rgba(37,99,235,0.1)", borderColor: "rgba(37,99,235,0.2)" }}
+          >
+            <BookOpen className="w-3.5 h-3.5" style={{ color: "#60a5fa" }} />
           </div>
-          <h2 className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors duration-300 ${theme === 'dark' ? 'text-white/60' : 'text-slate-500'}`}>
+          <h2
+            className="text-[10px] font-bold uppercase tracking-[0.3em]"
+            style={{ color: "var(--text-secondary)" }}
+          >
             Versículos do Dia
           </h2>
         </div>
-        
+        <div
+          className="w-full h-24 rounded-xl border animate-pulse"
+          style={{ background: "var(--bg-card)", borderColor: "var(--border-card)" }}
+        />
+      </div>
+    );
+  }
+
+  if (verses.length === 0) return null;
+
+  /* ── BOTÃO NAV VISUAL ── */
+  const NavBtn = ({ onClick, children }: { onClick: () => void; children: React.ReactNode }) => (
+    <button
+      onClick={onClick}
+      className="p-1 rounded-lg border transition-all duration-200 hover:border-opacity-60"
+      style={{
+        background: "var(--bg-card)",
+        borderColor: "var(--border-card)",
+        color: "var(--text-secondary)",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(37,99,235,0.5)";
+        (e.currentTarget as HTMLButtonElement).style.color = "#60a5fa";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-card)";
+        (e.currentTarget as HTMLButtonElement).style.color = "var(--text-secondary)";
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  return (
+    <div className="w-full space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className={`text-[9px] font-black uppercase transition-colors duration-300 ${theme === 'dark' ? 'text-white/20' : 'text-slate-300'}`}>
-            {currentIndex + 1} / {dailyVerses.length}
+          <div
+            className="p-1 rounded-lg border"
+            style={{
+              background: "rgba(37,99,235,0.1)",
+              borderColor: "rgba(37,99,235,0.2)",
+            }}
+          >
+            <BookOpen className="w-3.5 h-3.5" style={{ color: "#60a5fa" }} />
+          </div>
+          <h2
+            className="text-[10px] font-bold uppercase tracking-[0.3em]"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Versículos do Dia
+          </h2>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span
+            className="text-[9px] font-black uppercase"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {currentIndex + 1} / {verses.length}
           </span>
           <div className="flex gap-1">
-            <button
-              onClick={prev}
-              className={`p-1 rounded-lg border transition-all duration-300 ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-white/40 border-white/10' : 'bg-slate-100 hover:bg-slate-200 text-slate-400 border-slate-200'}`}
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={next}
-              className={`p-1 rounded-lg border transition-all duration-300 ${theme === 'dark' ? 'bg-white/5 hover:bg-white/10 text-white/40 border-white/10' : 'bg-slate-100 hover:bg-slate-200 text-slate-400 border-slate-200'}`}
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            <NavBtn onClick={prev}><ChevronLeft className="w-3.5 h-3.5" /></NavBtn>
+            <NavBtn onClick={next}><ChevronRight className="w-3.5 h-3.5" /></NavBtn>
           </div>
         </div>
       </div>
 
+      {/* Card animado */}
       <div className="relative">
         <AnimatePresence mode="wait">
           <motion.div
@@ -55,22 +121,25 @@ export default function DailyVerses() {
             exit={{ opacity: 0, scale: 1.02 }}
             transition={{ duration: 0.2 }}
           >
-            <VerseCard verse={dailyVerses[currentIndex]} />
+            <VerseCard verse={verses[currentIndex]} />
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Miniaturas/Indicadores */}
-      <div className="flex justify-center gap-1 overflow-x-auto py-1 no-scrollbar">
-        {dailyVerses.map((_, i) => (
+      {/* Indicadores */}
+      <div className="flex justify-center gap-1 overflow-x-auto py-1">
+        {verses.map((_, i) => (
           <button
             key={i}
             onClick={() => setCurrentIndex(i)}
-            className={`h-0.5 rounded-full transition-all duration-300 ${
-              i === currentIndex 
-                ? (theme === 'dark' ? "w-4 bg-emerald-500" : "w-4 bg-indigo-600") 
-                : (theme === 'dark' ? "w-1 bg-white/10 hover:bg-white/20" : "w-1 bg-slate-200 hover:bg-slate-300")
-            }`}
+            className="h-0.5 rounded-full transition-all duration-300"
+            style={{
+              width: i === currentIndex ? "16px" : "4px",
+              background:
+                i === currentIndex
+                  ? "#2563eb"
+                  : "rgba(37,99,235,0.2)",
+            }}
           />
         ))}
       </div>

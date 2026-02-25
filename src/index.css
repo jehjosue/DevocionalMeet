@@ -1,76 +1,158 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;0,900;1,400&display=swap');
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────
+   DESIGN TOKENS
+   ───────────────────────────────────────────── */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --color-brand-blue-dark: #0f172a;
-  --color-brand-blue-deep: #0b3d91;
-  --color-brand-blue-royal: #1e3a8a;
-  --color-brand-accent: #16a34a;
+
+  /* Paleta Azul */
+  --color-brand-blue-1:    #0b3d91;
+  --color-brand-blue-2:    #1e3a8a;
+  --color-brand-blue-3:    #2563eb;
+  --color-brand-blue-soft: #3b82f6;
+  --color-brand-blue-muted:#60a5fa;
+  --color-brand-blue-light:#93c5fd;
+
+  /* Dark */
+  --color-brand-dark:  #05060a;
+  --color-brand-dark2: #0d0e14;
 }
 
+/* ─────────────────────────────────────────────
+   CSS VARIABLES POR TEMA
+   ───────────────────────────────────────────── */
 :root {
-  --transition-speed: 0.3s;
+  --transition: 0.25s ease;
+
+  /* Dark mode (padrão) */
+  --bg-page:          #05060a;
+  --bg-card:          rgba(255, 255, 255, 0.04);
+  --bg-input:         rgba(0, 0, 0, 0.35);
+  --border-card:      rgba(37, 99, 235, 0.22);
+  --border-input:     rgba(37, 99, 235, 0.18);
+  --border-input-focus: rgba(37, 99, 235, 0.6);
+  --text-primary:     rgba(255, 255, 255, 0.92);
+  --text-secondary:   rgba(255, 255, 255, 0.55);
+  --text-muted:       rgba(255, 255, 255, 0.25);
+  --accent:           #2563eb;
+  --accent-hover:     #3b82f6;
+  --verse-ref:        #60a5fa;
+  --glow-card:        0 0 40px rgba(37, 99, 235, 0.12);
+  --scrollbar-track:  #0d0e14;
+  --scrollbar-thumb:  #1e3a8a;
 }
 
-html.dark body {
-  @apply bg-black text-white/90;
-  background-image: none;
+html.light {
+  --bg-page:          #ffffff;
+  --bg-card:          rgba(255, 255, 255, 0.9);
+  --bg-input:         #f8fafc;
+  --border-card:      rgba(37, 99, 235, 0.15);
+  --border-input:     rgba(37, 99, 235, 0.2);
+  --border-input-focus: rgba(37, 99, 235, 0.5);
+  --text-primary:     #0f172a;
+  --text-secondary:   #475569;
+  --text-muted:       #94a3b8;
+  --accent:           #2563eb;
+  --accent-hover:     #1d4ed8;
+  --verse-ref:        #2563eb;
+  --glow-card:        0 4px 24px rgba(37, 99, 235, 0.09);
+  --scrollbar-track:  #f1f5f9;
+  --scrollbar-thumb:  #bfdbfe;
 }
 
-html.light body {
-  @apply bg-white text-slate-900;
-  background-image: none;
-}
-
-body {
+/* ─────────────────────────────────────────────
+   BASE
+   ───────────────────────────────────────────── */
+html, body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  transition: background-color var(--transition), color var(--transition);
   @apply antialiased overflow-x-hidden;
-  transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
   min-height: 100vh;
 }
 
-/* Degradês para Cards e Seções */
+/* ─────────────────────────────────────────────
+   DEGRADÊS REUTILIZÁVEIS
+   ───────────────────────────────────────────── */
+.gradient-blue {
+  background: linear-gradient(135deg, #0b3d91 0%, #1e3a8a 55%, #2563eb 100%);
+}
+
 .bg-brand-gradient-dark {
-  background: linear-gradient(135deg, #0f172a 0%, #0b3d91 50%, #1e3a8a 100%);
+  background: linear-gradient(135deg, rgba(11,61,145,0.18) 0%, rgba(30,58,138,0.22) 100%);
 }
 
 .bg-brand-gradient-light {
-  background: linear-gradient(135deg, #e0ecff 0%, #c7d8ff 50%, #a9c3ff 100%);
+  background: linear-gradient(135deg, #e0f0ff 0%, #c7dcff 100%);
 }
 
-/* Glassmorphism */
+/* ─────────────────────────────────────────────
+   CARDS GLASSMORPHISM
+   ───────────────────────────────────────────── */
 .glass-card-dark {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--glow-card);
   backdrop-filter: blur(20px);
 }
 
 .glass-card-light {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  box-shadow: var(--glow-card);
   backdrop-filter: blur(20px);
 }
 
-/* Esconde scrollbars chatas em apps de tela cheia */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ─────────────────────────────────────────────
+   BOTÃO PRIMÁRIO (azul degradê)
+   ───────────────────────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, #0b3d91 0%, #1e3a8a 55%, #2563eb 100%);
+  color: #fff;
+  font-weight: 700;
+  border: none;
+  transition: filter var(--transition), transform var(--transition), box-shadow var(--transition);
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.30);
 }
 
-::-webkit-scrollbar-track {
-  @apply bg-zinc-950;
+.btn-primary:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 6px 28px rgba(37, 99, 235, 0.45);
 }
 
-::-webkit-scrollbar-thumb {
-  @apply bg-zinc-800 rounded-full;
+.btn-primary:active {
+  transform: scale(0.98);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-zinc-700;
+/* ─────────────────────────────────────────────
+   INPUTS
+   ───────────────────────────────────────────── */
+.input-field {
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  color: var(--text-primary);
+  transition: border-color var(--transition), box-shadow var(--transition);
 }
 
-/* Garante que o container do Jitsi ocupe tudo */
-#jitsi-container {
-  height: 100%;
-  width: 100%;
+.input-field::placeholder {
+  color: var(--text-muted);
 }
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+/* ─────────────────────────────────────────────
+   SCROLLBAR
+   ───────────────────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb  { background: var(--scrollbar-thumb); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #2563eb; }
+
+/* Jitsi container */
+#jitsi-container { height: 100%; width: 100%; }
