@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Devocional Meet</title>
+    <script>
+      // Fix for "Cannot set property fetch of #<Window> which has only a getter"
+      // Some polyfills try to overwrite window.fetch which might be read-only in some environments.
+      (function() {
+        try {
+          var nativeFetch = window.fetch;
+          if (nativeFetch) {
+            Object.defineProperty(window, 'fetch', {
+              get: function() { return nativeFetch; },
+              set: function() { console.warn('Polyfill attempted to overwrite window.fetch - ignored to prevent crash.'); },
+              configurable: true
+            });
+          }
+        } catch (e) {
+          console.error('Failed to apply fetch fix:', e);
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

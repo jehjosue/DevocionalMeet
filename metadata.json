@@ -1,0 +1,8 @@
+{
+  "name": "Devocional Meet",
+  "description": "Plataforma de videoconferência 100% gratuita para devocionais da igreja usando Jitsi.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

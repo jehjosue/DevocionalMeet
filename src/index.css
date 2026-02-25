@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-blue-dark: #0f172a;
+  --color-brand-blue-deep: #0b3d91;
+  --color-brand-blue-royal: #1e3a8a;
+  --color-brand-accent: #16a34a;
+}
+
+:root {
+  --transition-speed: 0.3s;
+}
+
+html.dark body {
+  @apply bg-black text-white/90;
+  background-image: none;
+}
+
+html.light body {
+  @apply bg-white text-slate-900;
+  background-image: none;
+}
+
+body {
+  @apply antialiased overflow-x-hidden;
+  transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+  min-height: 100vh;
+}
+
+/* Degradês para Cards e Seções */
+.bg-brand-gradient-dark {
+  background: linear-gradient(135deg, #0f172a 0%, #0b3d91 50%, #1e3a8a 100%);
+}
+
+.bg-brand-gradient-light {
+  background: linear-gradient(135deg, #e0ecff 0%, #c7d8ff 50%, #a9c3ff 100%);
+}
+
+/* Glassmorphism */
+.glass-card-dark {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+}
+
+.glass-card-light {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(20px);
+}
+
+/* Esconde scrollbars chatas em apps de tela cheia */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-zinc-950;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-zinc-800 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-zinc-700;
+}
+
+/* Garante que o container do Jitsi ocupe tudo */
+#jitsi-container {
+  height: 100%;
+  width: 100%;
+}
