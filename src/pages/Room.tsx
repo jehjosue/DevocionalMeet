@@ -526,7 +526,7 @@ export default function Room() {
                       {remoteStreams.map((remote) => (
                         <div key={remote.id} className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm">
-                            {(remote.name || "P")[0].toUpperCase()}
+                            {(remote.name && remote.name.length > 0) ? remote.name[0].toUpperCase() : "P"}
                           </div>
                           <p className="font-medium text-sm flex-1">{remote.name || "Participante"}</p>
                         </div>
