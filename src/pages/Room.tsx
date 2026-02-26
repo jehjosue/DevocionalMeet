@@ -35,7 +35,7 @@ export default function Room() {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const socketRef = useRef<Socket | null>(null);
-  const peersRef = useRef<{ [socketId: string]: RTCPeerConnection }>({});
+  const peerConnections = useRef(new Map<string, RTCPeerConnection>());
 
   // Para UI: rastrear participantes remotos e seus MediaStreams
   const [remoteStreams, setRemoteStreams] = useState<{ id: string, stream: MediaStream }[]>([]);
@@ -77,12 +77,12 @@ export default function Room() {
         // Quando um novo usuário entra, NÓS (que já estávamos) criamos a oferta para ele
         socket.on("user-joined", async (userId: string) => {
           if (userId === socket.id) return;
-          const peer = createPeer(userId, socket, stream);
-          peersRef.current[userId] = peer;
+          const pc = createPeer(userId, socket, stream);
+          peerConnections.current.set(userId, pc);
 
           try {
-            const offer = await peer.createOffer();
-            await peer.setLocalDescription(offer);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
             socket.emit("offer", { target: userId, caller: socket.id, sdp: offer });
           } catch (e) {
             console.error("Erro ao criar offer:", e);
@@ -93,13 +93,13 @@ export default function Room() {
         socket.on("offer", async (payload: { target: string, caller: string, sdp: RTCSessionDescriptionInit }) => {
           if (payload.target !== socket.id) return;
 
-          const peer = createPeer(payload.caller, socket, stream);
-          peersRef.current[payload.caller] = peer;
+          const pc = createPeer(payload.caller, socket, stream);
+          peerConnections.current.set(payload.caller, pc);
 
           try {
-            await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-            const answer = await peer.createAnswer();
-            await peer.setLocalDescription(answer);
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
             socket.emit("answer", { target: payload.caller, caller: socket.id, sdp: answer });
           } catch (e) {
             console.error("Erro ao responder offer:", e);
@@ -109,10 +109,10 @@ export default function Room() {
         // Quando recebemos uma resposta à nossa oferta
         socket.on("answer", async (payload: { target: string, caller: string, sdp: RTCSessionDescriptionInit }) => {
           if (payload.target !== socket.id) return;
-          const peer = peersRef.current[payload.caller];
-          if (peer) {
+          const pc = peerConnections.current.get(payload.caller);
+          if (pc) {
             try {
-              await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+              await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
             } catch (e) {
               console.error("Erro ao setar remote desc (answer)", e);
             }
@@ -123,10 +123,10 @@ export default function Room() {
         socket.on("ice-candidate", async (payload: { target?: string, sender: string, candidate: RTCIceCandidateInit }) => {
           // Ignora se fomos nós que enviamos
           if (payload.sender === socket.id) return;
-          const peer = peersRef.current[payload.sender];
-          if (peer && payload.candidate) {
+          const pc = peerConnections.current.get(payload.sender);
+          if (pc && payload.candidate) {
             try {
-              await peer.addIceCandidate(new RTCIceCandidate(payload.candidate));
+              await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
             } catch (e) {
               console.error("Erro ao adicionar ICE Candidate", e);
             }
@@ -140,9 +140,10 @@ export default function Room() {
 
         // Controle de desconexão
         socket.on("user-disconnected", (userId: string) => {
-          if (peersRef.current[userId]) {
-            peersRef.current[userId].close();
-            delete peersRef.current[userId];
+          const pc = peerConnections.current.get(userId);
+          if (pc) {
+            pc.close();
+            peerConnections.current.delete(userId);
           }
           setRemoteStreams(prev => prev.filter(streamObj => streamObj.id !== userId));
         });
@@ -161,9 +162,8 @@ export default function Room() {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach(t => t.stop());
       }
-      Object.keys(peersRef.current).forEach(peerId => {
-        peersRef.current[peerId].close();
-      });
+      peerConnections.current.forEach(pc => pc.close());
+      peerConnections.current.clear();
       if (socket) {
         socket.disconnect();
       }
@@ -173,26 +173,34 @@ export default function Room() {
   // Função auxiliar para criar a conexão P2P (Bug 2 Fix)
   const createPeer = (peerId: string, socket: Socket, stream: MediaStream) => {
     // 3. CRIE O PEER CONNECTION
-    const peer = new RTCPeerConnection(ICE_SERVERS);
+    const pc = new RTCPeerConnection(ICE_SERVERS);
 
-    // 4. ADICIONE AS TRACKS LOCAIS (Correção fundamental do Áudio/Vídeo Mudo)
+    // 4. ADICIONE AS TRACKS LOCAIS ANTES DO OFFER/ANSWER
     stream.getTracks().forEach(track => {
-      peer.addTrack(track, stream);
+      pc.addTrack(track, stream);
     });
 
     // 5. OUVIR AS TRACKS REMOTAS
-    peer.ontrack = (event) => {
+    pc.ontrack = (event) => {
       if (event.streams && event.streams[0]) {
         setRemoteStreams(prev => {
           // Evita duplicar se a thread rodar duas vezes
           if (prev.some(s => s.id === peerId)) return prev;
           return [...prev, { id: peerId, stream: event.streams[0] }];
         });
+
+        // Garantir atribuição direta ao DOM conforme instrução
+        setTimeout(() => {
+          const remoteVideo = document.getElementById("video-" + peerId) as HTMLVideoElement;
+          if (remoteVideo) {
+            remoteVideo.srcObject = event.streams[0];
+          }
+        }, 100);
       }
     };
 
     // 6. ENVIAR CANDIDATOS
-    peer.onicecandidate = (event) => {
+    pc.onicecandidate = (event) => {
       if (event.candidate) {
         socket.emit("ice-candidate", {
           target: peerId,
@@ -202,7 +210,7 @@ export default function Room() {
       }
     };
 
-    return peer;
+    return pc;
   };
 
   const toggleMic = () => {
@@ -289,7 +297,16 @@ export default function Room() {
         {/* Remote Videos */}
         {remoteStreams.map((remote) => (
           <div key={remote.id} className="video-tile">
-            <RemoteVideo stream={remote.stream} />
+            <video
+              id={`video-${remote.id}`}
+              autoPlay
+              playsInline
+              ref={(el) => {
+                if (el && remote.stream) {
+                  el.srcObject = remote.stream;
+                }
+              }}
+            />
             <div className="tile-label">Participante</div>
           </div>
         ))}
@@ -435,15 +452,4 @@ export default function Room() {
   );
 }
 
-// Subcomponente para renderizar vídeos remotos com ref dinâmico
-function RemoteVideo({ stream }: { stream: MediaStream }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
 
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream]);
-
-  return <video ref={videoRef} autoPlay playsInline />;
-}
