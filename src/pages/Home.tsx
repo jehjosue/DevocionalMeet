@@ -1,23 +1,40 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, Plus, ArrowRight, User, Shield, Sparkles } from "lucide-react";
-import { motion } from "motion/react";
+import { BookOpen, Plus, ArrowRight, Lock, User, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import DailyVerses from "../components/DailyVerses";
 import ThemeToggle from "../components/ThemeToggle";
+import { useTheme } from "../context/ThemeContext";
 
 export default function Home() {
+  const { theme } = useTheme();
+  const [userName, setUserName] = useState(localStorage.getItem("devocional_user_name") || "");
   const [roomUrl, setRoomUrl] = useState("");
+  const [isLeader, setIsLeader] = useState(false);
+  const [roomPassword, setRoomPassword] = useState("");
   const navigate = useNavigate();
+  const isDark = theme === "dark";
 
   const generateRoomName = () => {
     const now = new Date();
     const datePart = now.toISOString().split("T")[0].replace(/-/g, "");
-    return `devocional-${datePart}-${Math.floor(Math.random() * 1000)}`;
+    const timePart =
+      now.getHours().toString().padStart(2, "0") +
+      now.getMinutes().toString().padStart(2, "0");
+    return `devocional-${datePart}-${timePart}-${Math.floor(Math.random() * 1000)}`;
+  };
+
+  const saveUser = (name: string) => {
+    setUserName(name);
+    localStorage.setItem("devocional_user_name", name);
   };
 
   const createRoom = () => {
     const name = generateRoomName();
-    navigate(`/pre/${name}`);
+    const params = new URLSearchParams();
+    if (isLeader && roomPassword) params.set("pwd", roomPassword);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    navigate(`/pre/${name}${query}`);
   };
 
   const joinRoom = (e: React.FormEvent) => {
@@ -28,160 +45,284 @@ export default function Home() {
     }
   };
 
+  // ── 3 passos ──
+  const steps = [
+    { n: "1", label: "Digite seu nome" },
+    { n: "2", label: "Clique em Entrar" },
+    { n: "3", label: "Permita câmera/mic se pedir" },
+  ];
+
   return (
-    <div className="home-container">
-      <div className="home-bg-blobs">
-        <div className="blob blob-1" />
-        <div className="blob blob-2" />
+    <div
+      className="min-h-screen flex flex-col items-center justify-center py-6 px-6 font-sans relative"
+      style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}
+    >
+      {/* Theme Toggle */}
+      <div className="fixed top-6 right-6 z-50">
+        <ThemeToggle />
       </div>
 
-      <nav className="home-nav">
-        <div className="logo-area">
-          <Shield size={28} className="text-blue-500" />
-          <span className="logo-text">DevocionalMeet</span>
-        </div>
-        <ThemeToggle />
-      </nav>
+      {/* Background glow */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full"
+          style={{
+            background: isDark
+              ? "radial-gradient(ellipse, rgba(11,61,145,0.18) 0%, transparent 70%)"
+              : "radial-gradient(ellipse, rgba(37,99,235,0.07) 0%, transparent 70%)",
+            filter: "blur(80px)",
+          }}
+        />
+        <div
+          className="absolute bottom-[-10%] right-[-10%] w-[55%] h-[55%] rounded-full"
+          style={{
+            background: isDark
+              ? "radial-gradient(ellipse, rgba(30,58,138,0.15) 0%, transparent 70%)"
+              : "radial-gradient(ellipse, rgba(37,99,235,0.05) 0%, transparent 70%)",
+            filter: "blur(80px)",
+          }}
+        />
+      </div>
 
-      <main className="home-hero">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="hero-card"
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="max-w-[480px] w-full space-y-5 relative z-10"
+      >
+        {/* ── HEADER ── */}
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <motion.div
+              animate={{ y: [0, -5, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              className="p-3 rounded-2xl border"
+              style={{
+                background: isDark ? "rgba(37,99,235,0.1)" : "rgba(37,99,235,0.07)",
+                borderColor: isDark ? "rgba(37,99,235,0.3)" : "rgba(37,99,235,0.2)",
+                boxShadow: "0 0 30px rgba(37,99,235,0.15)",
+              }}
+            >
+              <BookOpen className="w-8 h-8" style={{ color: "#60a5fa" }} />
+            </motion.div>
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-4xl font-black tracking-tighter" style={{ color: "var(--text-primary)" }}>
+              DevocionalMeet
+            </h1>
+            <div
+              className="inline-flex items-center px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-[0.3em]"
+              style={{
+                background: isDark ? "rgba(37,99,235,0.08)" : "rgba(37,99,235,0.06)",
+                borderColor: isDark ? "rgba(37,99,235,0.2)" : "rgba(37,99,235,0.15)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full mr-2 animate-pulse" style={{ background: "#2563eb" }} />
+              Comunhão &amp; Fé
+            </div>
+          </div>
+        </div>
+
+        {/* ── 3 PASSOS ── */}
+        <div
+          className="flex items-center justify-center gap-0 rounded-xl px-4 py-3"
+          style={{
+            background: isDark ? "rgba(37,99,235,0.06)" : "rgba(37,99,235,0.05)",
+            border: "1px solid var(--border-card)",
+          }}
         >
-          <div className="badge-premium">
-            <Sparkles size={12} />
-            <span>Versão Premium 2.0</span>
+          {steps.map((step, i) => (
+            <React.Fragment key={step.n}>
+              <div className="flex flex-col items-center gap-1 px-3 text-center">
+                <div
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white"
+                  style={{ background: "linear-gradient(135deg, #0b3d91, #2563eb)" }}
+                >
+                  {step.n}
+                </div>
+                <span className="text-[9px] font-semibold leading-tight" style={{ color: "var(--text-secondary)" }}>
+                  {step.label}
+                </span>
+              </div>
+              {i < steps.length - 1 && (
+                <div className="w-6 h-[1px] flex-shrink-0" style={{ background: "var(--border-card)" }} />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* ── VERSÍCULOS ── */}
+        <DailyVerses />
+
+        {/* ── CARD PRINCIPAL ── */}
+        <div
+          className="p-6 rounded-2xl space-y-4"
+          style={{
+            background: "var(--bg-card)",
+            border: "1px solid var(--border-card)",
+            boxShadow: "var(--glow-card)",
+            backdropFilter: "blur(20px)",
+          }}
+        >
+          {/* Nome */}
+          <div className="space-y-1.5">
+            <label
+              className="text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 ml-1"
+              style={{ color: "var(--text-muted)" }}
+            >
+              <User className="w-3 h-3" /> Seu nome
+            </label>
+            <input
+              type="text"
+              placeholder="Como você quer aparecer na reunião"
+              value={userName}
+              onChange={(e) => saveUser(e.target.value)}
+              className="w-full rounded-xl px-4 py-3 text-sm input-field"
+            />
           </div>
 
-          <header className="hero-header">
-            <h1>Momentos de <span className="text-gradient">Comunhão</span> e Fé</h1>
-            <p>A plataforma definitiva para suas reuniões de devocional, agora mais rápida, segura e com design profissional.</p>
-          </header>
-
-          <DailyVerses />
-
-          <div className="hero-actions">
-            <div className="action-main">
-              <button className="btn-create" onClick={createRoom}>
-                <Plus size={20} />
-                Iniciar Nova Reunião
-              </button>
-            </div>
-
-            <div className="divider">
-              <span className="line" />
-              <span className="text">OU</span>
-              <span className="line" />
-            </div>
-
-            <form className="join-input-group" onSubmit={joinRoom}>
-              <div className="input-wrap">
-                <User size={18} className="icon" />
-                <input
-                  type="text"
-                  placeholder="Código ou link da sala"
-                  value={roomUrl}
-                  onChange={(e) => setRoomUrl(e.target.value)}
+          {/* Toggle líder/moderador */}
+          <div
+            className="rounded-xl overflow-hidden"
+            style={{ border: "1px solid var(--border-card)" }}
+          >
+            <button
+              type="button"
+              onClick={() => setIsLeader(!isLeader)}
+              className="w-full flex items-center justify-between px-4 py-3 transition-colors duration-200"
+              style={{ background: isDark ? "rgba(0,0,0,0.2)" : "rgba(37,99,235,0.04)" }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="p-1.5 rounded-lg transition-colors duration-200"
+                  style={{
+                    background: isLeader ? "rgba(37,99,235,0.15)" : "rgba(255,255,255,0.04)",
+                    color: isLeader ? "#60a5fa" : "var(--text-muted)",
+                  }}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[11px] font-bold" style={{ color: "var(--text-primary)" }}>
+                    Sou líder / moderador
+                  </p>
+                  <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>
+                    Ativa opções avançadas de sala
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Switch */}
+                <div
+                  className="w-9 h-5 rounded-full relative transition-all duration-200"
+                  style={{
+                    background: isLeader
+                      ? "linear-gradient(135deg, #0b3d91, #2563eb)"
+                      : isDark ? "rgba(255,255,255,0.10)" : "#d1d5db",
+                    boxShadow: isLeader ? "0 0 12px rgba(37,99,235,0.4)" : "none",
+                  }}
+                >
+                  <div
+                    className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200"
+                    style={{ left: isLeader ? "17px" : "2px" }}
+                  />
+                </div>
+                <ChevronDown
+                  className="w-4 h-4 transition-transform duration-200"
+                  style={{
+                    color: "var(--text-muted)",
+                    transform: isLeader ? "rotate(180deg)" : "rotate(0deg)",
+                  }}
                 />
               </div>
-              <button type="submit" className="btn-join">
-                <ArrowRight size={20} />
+            </button>
+
+            {/* Senha da sala (só visível se líder) */}
+            <AnimatePresence>
+              {isLeader && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.22 }}
+                  style={{ overflow: "hidden" }}
+                >
+                  <div
+                    className="px-4 pb-4 pt-1 space-y-1.5"
+                    style={{ borderTop: "1px solid var(--border-card)" }}
+                  >
+                    <label
+                      className="text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 ml-1"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      <Lock className="w-3 h-3" /> Senha da sala (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Deixe em branco para sala aberta"
+                      value={roomPassword}
+                      onChange={(e) => setRoomPassword(e.target.value)}
+                      className="w-full rounded-xl px-4 py-3 text-sm input-field"
+                    />
+                    <p className="text-[9px] ml-1" style={{ color: "var(--text-muted)" }}>
+                      A senha será aplicada automaticamente ao criar a sala.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Botões */}
+          <div className="space-y-2">
+            <button
+              onClick={createRoom}
+              className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              {isLeader ? "Criar Sala de Devocional" : "Entrar no Devocional"}
+            </button>
+
+            {/* Divider */}
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t" style={{ borderColor: "var(--border-card)" }} />
+              </div>
+              <div className="relative flex justify-center text-[9px] uppercase tracking-widest">
+                <span className="px-2 font-black" style={{ background: "var(--bg-page)", color: "var(--text-muted)" }}>
+                  Ou entre com link
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={joinRoom} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Link ou código da sala"
+                value={roomUrl}
+                onChange={(e) => setRoomUrl(e.target.value)}
+                className="flex-1 rounded-xl px-4 py-3 text-sm input-field"
+              />
+              <button
+                type="submit"
+                className="p-3 rounded-xl transition-all duration-200 active:scale-95 border"
+                style={{ background: "var(--bg-card)", borderColor: "var(--border-input)", color: "#60a5fa" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#2563eb";
+                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.12)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-input)";
+                  (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-card)";
+                }}
+              >
+                <ArrowRight className="w-5 h-5" />
               </button>
             </form>
           </div>
-        </motion.div>
-
-        <section className="features-grid">
-          <div className="feat-item">
-            <div className="feat-icon"><Shield size={20} /></div>
-            <h3>Privacidade Total</h3>
-            <p>Sua comunicação é direta e segura.</p>
-          </div>
-          <div className="feat-item">
-            <div className="feat-icon"><BookOpen size={20} /></div>
-            <h3>Foco na Palavra</h3>
-            <p>Interface limpa para não distrair do que importa.</p>
-          </div>
-        </section>
-      </main>
-
-      <style>{`
-        .home-container {
-          min-height: 100vh;
-          background: #05060a;
-          color: #f0f4ff;
-          position: relative;
-          overflow: hidden;
-          font-family: 'Outfit', sans-serif;
-          display: flex; flex-direction: column;
-        }
-
-        .home-bg-blobs .blob {
-          position: absolute; width: 600px; height: 600px; border-radius: 50%; opacity: 0.15; filter: blur(80px);
-        }
-        .blob-1 { top: -200px; left: -200px; background: #2563eb; }
-        .blob-2 { bottom: -200px; right: -200px; background: #1e3a8a; }
-
-        .home-nav {
-          display: flex; justify-content: space-between; align-items: center; padding: 2rem 10%; z-index: 20;
-        }
-        .logo-area { display: flex; align-items: center; gap: 0.75rem; }
-        .logo-text { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
-
-        .home-hero { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; z-index: 10; gap: 4rem; }
-        
-        .hero-card {
-          max-width: 600px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2rem;
-        }
-
-        .badge-premium {
-          display: flex; align-items: center; gap: 0.5rem; background: rgba(37,99,235,0.1); padding: 0.5rem 1rem;
-          border-radius: 99px; border: 1px solid rgba(37,99,235,0.2); color: #60a5fa; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
-        }
-
-        .hero-header h1 { font-size: 3.5rem; font-weight: 900; line-height: 1.1; letter-spacing: -0.05em; }
-        .text-gradient { background: linear-gradient(to right, #60a5fa, #2563eb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .hero-header p { font-size: 1.15rem; color: rgba(240,244,255,0.5); line-height: 1.6; max-width: 500px; margin: 1.5rem auto 0; }
-
-        .hero-actions { width: 100%; display: flex; flex-direction: column; gap: 1.5rem; }
-
-        .btn-create {
-          width: 100%; padding: 1.25rem; border-radius: 20px; border: none; background: #2563eb; color: white;
-          font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; gap: 1rem;
-          cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 10px 40px rgba(37,99,235,0.3);
-        }
-        .btn-create:hover { transform: translateY(-5px); box-shadow: 0 20px 60px rgba(37,99,235,0.5); }
-
-        .divider { display: flex; align-items: center; gap: 1rem; color: rgba(240,244,255,0.2); font-size: 0.75rem; font-weight: 800; }
-        .divider .line { flex: 1; height: 1px; background: rgba(255,255,255,0.05); }
-
-        .join-input-group { display: flex; gap: 0.75rem; width: 100%; }
-        .input-wrap { flex: 1; position: relative; }
-        .input-wrap .icon { position: absolute; left: 1.25rem; top: 50%; transform: translateY(-50%); color: rgba(240,244,255,0.3); }
-        .input-wrap input {
-          width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 1rem 1rem 1rem 3.5rem;
-          border-radius: 18px; color: white; font-size: 1rem; transition: 0.2s;
-        }
-        .input-wrap input:focus { border-color: #2563eb; background: rgba(37,99,235,0.05); outline: none; }
-
-        .btn-join {
-          padding: 1rem; border-radius: 18px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05);
-          color: white; cursor: pointer; transition: 0.2s;
-        }
-        .btn-join:hover { background: #2563eb; border-color: #2563eb; }
-
-        .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; max-width: 800px; width: 100%; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 4rem; }
-        .feat-item { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.75rem; }
-        .feat-icon { width: 44px; height: 44px; border-radius: 14px; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; color: #2563eb; }
-        .feat-item h3 { font-size: 1rem; font-weight: 700; }
-        .feat-item p { font-size: 0.85rem; color: rgba(240,244,255,0.4); }
-
-        @media (max-width: 600px) {
-          .hero-header h1 { font-size: 2.5rem; }
-          .features-grid { grid-template-columns: 1fr; }
-        }
-      `}</style>
+        </div>
+      </motion.div>
     </div>
   );
 }
