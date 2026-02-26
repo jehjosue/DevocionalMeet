@@ -84,6 +84,7 @@ export default function Room() {
 
     // Quando um usuário remoto publica mídia
     client.on("user-published", async (user, mediaType) => {
+      console.log("[Agora] user-published:", user.uid, mediaType);
       await client.subscribe(user, mediaType);
 
       const name = uidNameMap.current.get(user.uid) || "Participante";
@@ -143,11 +144,11 @@ export default function Room() {
     });
 
     const init = async () => {
-      try {
-        const failTimeout = setTimeout(() => {
-          setConnectionError("Demora na conexão. Verifique permissões de câmera/microfone.");
-        }, 15000);
+      const failTimeout = setTimeout(() => {
+        setConnectionError("Demora na conexão. Verifique permissões de câmera/microfone.");
+      }, 15000);
 
+      try {
         // Cria tracks locais
         const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
         localAudioTrackRef.current = audioTrack;
@@ -161,11 +162,16 @@ export default function Room() {
         // Gera UID numérico único
         const uid = Math.floor(Math.random() * 100000);
 
+        // Log do canal para diagnóstico
+        console.log("[Agora] Entrando no canal:", roomName, "| UID:", uid, "| AppID:", AGORA_APP_ID);
+
         // Entra no canal Agora
         await client.join(AGORA_APP_ID, roomName!, null, uid);
+        console.log("[Agora] JOIN bem-sucedido no canal:", roomName);
 
         // Publica tracks
         await client.publish([audioTrack, videoTrack]);
+        console.log("[Agora] Tracks publicados com sucesso");
 
         // Anuncia nome via socket
         socket.emit("join-room", roomName, String(uid), userName);
@@ -173,9 +179,15 @@ export default function Room() {
 
         clearTimeout(failTimeout);
         setJoined(true);
-      } catch (err) {
-        console.error("Erro Agora:", err);
-        setConnectionError("Permissão de câmera/microfone negada ou dispositivo não encontrado.");
+      } catch (err: any) {
+        console.error("[Agora] Erro:", err);
+        clearTimeout(failTimeout);
+        const msg = err?.message || String(err);
+        if (msg.includes("PERMISSION_DENIED") || msg.includes("getUserMedia") || msg.includes("NotFound")) {
+          setConnectionError("Permissão de câmera/microfone negada ou dispositivo não encontrado.");
+        } else {
+          setConnectionError(`Erro Agora: ${msg}. Verifique o App ID ou tente novamente.`);
+        }
       }
     };
 
@@ -395,8 +407,8 @@ export default function Room() {
                   <button
                     key={tab}
                     className={`flex-1 p-3 font-medium transition-colors ${activeTab === tab
-                        ? "text-blue-600 border-b-2 border-blue-600"
-                        : "text-gray-500"
+                      ? "text-blue-600 border-b-2 border-blue-600"
+                      : "text-gray-500"
                       }`}
                     onClick={() => setActiveTab(tab)}
                   >
@@ -472,8 +484,8 @@ export default function Room() {
                             </div>
                             <div
                               className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.sender === userName
-                                  ? "bg-blue-100 text-blue-900 rounded-tr-sm"
-                                  : "bg-gray-100 text-gray-800 rounded-tl-sm"
+                                ? "bg-blue-100 text-blue-900 rounded-tr-sm"
+                                : "bg-gray-100 text-gray-800 rounded-tl-sm"
                                 }`}
                             >
                               {msg.text}
