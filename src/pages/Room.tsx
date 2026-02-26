@@ -44,26 +44,36 @@ export default function Room() {
           return;
         }
 
-        // Usa o modo "live" (Broadcast) com a role correta
+        // Cria o cliet com a role config inicial
         clientRef.current = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
-        await clientRef.current.setClientRole(role as "host" | "audience");
 
         try {
+          // Em modo live, o recomendado geralmente é dar setClientRole *antes* do join
+          console.log("Definindo Role para:", role);
+          await clientRef.current.setClientRole(role as "host" | "audience");
+        } catch (roleErr) {
+          console.error("Erro ao definir role:", roleErr);
+        }
+
+        try {
+          console.log("Tentando Join com appID:", appId, "Room:", roomName);
           await clientRef.current.join(appId, roomName, null, null);
+          console.log("Join efetuado com sucesso!");
         } catch (joinErr: any) {
           console.error("Agora Join Error:", joinErr);
           if (joinErr?.code === "CAN_NOT_GET_GATEWAY_SERVER" || joinErr?.message?.toLowerCase().includes("token") || joinErr?.code === "ERR_DYNAMIC_KEY_TIMEOUT" || joinErr?.code === "ERR_INVALID_TOKEN") {
             setConnectionError("Erro de Autenticação: O seu projeto no Agora Console está configurado como 'Seguro' (Secure Mode). Isso exige um Servidor de Tokens. Para funcionar sem servidor (como agora), crie um novo projeto no Agora selecionando 'Testing Mode' (apenas App ID).");
           } else {
-            setConnectionError("Falha ao entrar na sala. Verifique sua conexão e se o App ID está correto.");
+            setConnectionError(`Falha ao entrar na sala. Erro: ${joinErr.message || JSON.stringify(joinErr)}`);
           }
           return; // Para a execução se falhar
         }
 
         // Só host cria e publica as faixas locais
         if (isHost) {
+          console.log("Usuário é host. Solicitando câmera e microfone...");
           const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(err => {
-            console.warn("Câmera/Mic recusados, você não conseguirá transmitir vídeo/áudio.");
+            console.warn("Câmera/Mic recusados, você não conseguirá transmitir vídeo/áudio.", err);
             return [null, null];
           });
 
@@ -146,17 +156,29 @@ export default function Room() {
   useEffect(() => {
     if (!roomName) return;
 
-    // Conecta no canal específico da sala para o chat
-    const channel = supabase.channel(`room_${roomName}`);
+    console.log("Iniciando conexão Supabase e Chat para sala:", roomName);
 
-    channel
-      .on('broadcast', { event: 'chat_message' }, (payload) => {
-        setMessages((prev) => [...prev, payload.payload]);
-      })
-      .subscribe();
+    let channel: any;
+    try {
+      // Conecta no canal específico da sala para o chat
+      channel = supabase.channel(`room_${roomName}`);
+
+      channel
+        .on('broadcast', { event: 'chat_message' }, (payload: any) => {
+          console.log("Recebida mensagem do Supabase:", payload);
+          setMessages((prev) => [...prev, payload.payload]);
+        })
+        .subscribe((status: string) => {
+          console.log("Status da Inscrição Supabase:", status);
+        });
+    } catch (err) {
+      console.error("Erro ao inicializar Supabase Channel:", err);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [roomName]);
 
