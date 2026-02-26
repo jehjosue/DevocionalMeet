@@ -2,21 +2,20 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, MessageSquare, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import AgoraRTC, {
+  IAgoraRTCClient,
+  IAgoraRTCRemoteUser,
+  ICameraVideoTrack,
+  IMicrophoneAudioTrack,
+} from "agora-rtc-sdk-ng";
 import io, { Socket } from "socket.io-client";
-import { SOCKET_URL } from "../config";
+import { SOCKET_URL, AGORA_APP_ID } from "../config";
 
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-  ],
-};
-
-interface RemoteStream {
-  id: string;
-  stream: MediaStream;
+interface RemoteUser {
+  uid: string | number;
   name: string;
+  videoTrack?: any;
+  audioTrack?: any;
 }
 
 export default function Room() {
@@ -30,6 +29,10 @@ export default function Room() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [copied, setCopied] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [remoteUsers, setRemoteUsers] = useState<RemoteUser[]>([]);
+  const [messages, setMessages] = useState<{ id: string; sender: string; text: string; time: string }[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [activeTab, setActiveTab] = useState<"people" | "chat">("people");
 
   const userName =
     searchParams.get("nome") ||
@@ -38,22 +41,18 @@ export default function Room() {
   const role = searchParams.get("role") || "audience";
   const isHost = role === "host";
 
-  const [activeTab, setActiveTab] = useState<"people" | "chat">("people");
-  const [messages, setMessages] = useState<{ id: string; sender: string; text: string; time: string }[]>([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [remoteStreams, setRemoteStreams] = useState<RemoteStream[]>([]);
-  const [remoteNames, setRemoteNames] = useState<Record<string, string>>({});
-
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  // USA REF para o stream local — evita closure stale
-  const localStreamRef = useRef<MediaStream | null>(null);
+  const clientRef = useRef<IAgoraRTCClient | null>(null);
+  const localVideoTrackRef = useRef<ICameraVideoTrack | null>(null);
+  const localAudioTrackRef = useRef<IMicrophoneAudioTrack | null>(null);
+  const localVideoElRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
-  const peerConnections = useRef(new Map<string, RTCPeerConnection>());
+  // Map uid -> name
+  const uidNameMap = useRef<Map<string | number, string>>(new Map());
 
   // Paginação
   const VIDEOS_POR_PAGINA = 9;
   const [paginaAtual, setPaginaAtual] = useState(0);
-  const totalParticipantes = remoteStreams.length + 1;
+  const totalParticipantes = remoteUsers.length + 1;
   const gridCount = totalParticipantes <= 9 ? String(totalParticipantes) : "many";
   const totalPaginas = Math.ceil(totalParticipantes / VIDEOS_POR_PAGINA);
   const inicioVisivel = paginaAtual * VIDEOS_POR_PAGINA;
@@ -64,240 +63,154 @@ export default function Room() {
     if (paginaAtual >= totalPaginas && totalPaginas > 0) setPaginaAtual(totalPaginas - 1);
   }, [totalPaginas, paginaAtual]);
 
-  // createPeer usa SEMPRE localStreamRef.current — nunca fica stale
-  const createPeer = useCallback(
-    (peerId: string, socket: Socket, peerName?: string) => {
-      // Fecha conexão anterior se existir
-      const existing = peerConnections.current.get(peerId);
-      if (existing) {
-        existing.close();
-        peerConnections.current.delete(peerId);
-      }
-
-      const pc = new RTCPeerConnection(ICE_SERVERS);
-
-      // Adiciona tracks locais — SEMPRE via ref, nunca via closure
-      const stream = localStreamRef.current;
-      if (stream) {
-        stream.getTracks().forEach((track) => {
-          pc.addTrack(track, stream);
-        });
-      }
-
-      // Recebe tracks remotas
-      pc.ontrack = (event) => {
-        const remoteStream = event.streams[0];
-        if (!remoteStream) return;
-
-        setRemoteStreams((prev) => {
-          const exists = prev.find((s) => s.id === peerId);
-          if (exists) {
-            // Atualiza stream se já existe
-            return prev.map((s) => (s.id === peerId ? { ...s, stream: remoteStream } : s));
-          }
-          return [...prev, { id: peerId, stream: remoteStream, name: peerName || "Participante" }];
-        });
-
-        // Atribui direto ao elemento DOM
-        requestAnimationFrame(() => {
-          const el = document.getElementById("video-" + peerId) as HTMLVideoElement | null;
-          if (el) el.srcObject = remoteStream;
-        });
-      };
-
-      // Envia ICE candidates
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket.emit("ice-candidate", {
-            target: peerId,
-            sender: socket.id,
-            candidate: event.candidate,
-          });
-        }
-      };
-
-      pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-          setRemoteStreams((prev) => prev.filter((s) => s.id !== peerId));
-          peerConnections.current.delete(peerId);
-        }
-      };
-
-      peerConnections.current.set(peerId, pc);
-      return pc;
-    },
-    [] // sem deps — usa só refs
-  );
-
   useEffect(() => {
     if (!roomName) return;
-
     if (!searchParams.get("nome")) {
       navigate(`/?roomId=${roomName}`);
       return;
     }
 
-    const socket = io(SOCKET_URL);
+    // Socket.io apenas para chat e nomes
+    const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
     socketRef.current = socket;
 
-    const failTimeout = setTimeout(() => {
-      setConnectionError("Demora na conexão. Verifique permissões de câmera/microfone.");
-    }, 15000);
+    socket.on("chat_message", (payload) => {
+      setMessages((prev) => [...prev, payload]);
+    });
 
-    const initWebRTC = async () => {
+    // Agora RTC
+    const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+    clientRef.current = client;
+
+    // Quando um usuário remoto publica mídia
+    client.on("user-published", async (user, mediaType) => {
+      await client.subscribe(user, mediaType);
+
+      const name = uidNameMap.current.get(user.uid) || "Participante";
+
+      if (mediaType === "video") {
+        setRemoteUsers((prev) => {
+          const exists = prev.find((u) => u.uid === user.uid);
+          if (exists) {
+            return prev.map((u) =>
+              u.uid === user.uid ? { ...u, videoTrack: user.videoTrack } : u
+            );
+          }
+          return [...prev, { uid: user.uid, name, videoTrack: user.videoTrack }];
+        });
+
+        requestAnimationFrame(() => {
+          const el = document.getElementById(`video-remote-${user.uid}`);
+          if (el && user.videoTrack) {
+            user.videoTrack.play(el);
+          }
+        });
+      }
+
+      if (mediaType === "audio") {
+        user.audioTrack?.play();
+        setRemoteUsers((prev) => {
+          const exists = prev.find((u) => u.uid === user.uid);
+          if (exists) {
+            return prev.map((u) =>
+              u.uid === user.uid ? { ...u, audioTrack: user.audioTrack } : u
+            );
+          }
+          return [...prev, { uid: user.uid, name, audioTrack: user.audioTrack }];
+        });
+      }
+    });
+
+    client.on("user-unpublished", (user, mediaType) => {
+      if (mediaType === "video") {
+        setRemoteUsers((prev) =>
+          prev.map((u) => (u.uid === user.uid ? { ...u, videoTrack: undefined } : u))
+        );
+      }
+    });
+
+    client.on("user-left", (user) => {
+      setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+      uidNameMap.current.delete(user.uid);
+    });
+
+    // Recebe nomes via socket
+    socket.on("user-name", (uid: string | number, name: string) => {
+      uidNameMap.current.set(uid, name);
+      setRemoteUsers((prev) =>
+        prev.map((u) => (String(u.uid) === String(uid) ? { ...u, name } : u))
+      );
+    });
+
+    const init = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        // Salva no REF imediatamente
-        localStreamRef.current = stream;
+        const failTimeout = setTimeout(() => {
+          setConnectionError("Demora na conexão. Verifique permissões de câmera/microfone.");
+        }, 15000);
 
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
+        // Cria tracks locais
+        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+        localAudioTrackRef.current = audioTrack;
+        localVideoTrackRef.current = videoTrack;
+
+        // Mostra vídeo local
+        if (localVideoElRef.current) {
+          videoTrack.play(localVideoElRef.current);
         }
 
+        // Gera UID numérico único
+        const uid = Math.floor(Math.random() * 100000);
+
+        // Entra no canal Agora
+        await client.join(AGORA_APP_ID, roomName!, null, uid);
+
+        // Publica tracks
+        await client.publish([audioTrack, videoTrack]);
+
+        // Anuncia nome via socket
+        socket.emit("join-room", roomName, String(uid), userName);
+        socket.emit("announce-name", roomName, uid, userName);
+
+        clearTimeout(failTimeout);
         setJoined(true);
-        clearTimeout(failTimeout);
-
-        // Aguarda o socket estar conectado antes de entrar na sala
-        // Garante que socket.id esteja definido no servidor
-        const emitJoinRoom = () => {
-          socket.emit("join-room", roomName, socket.id, userName);
-        };
-        if (socket.connected) {
-          emitJoinRoom();
-        } else {
-          socket.once("connect", emitJoinRoom);
-        }
-
-        // ── QUEM JÁ ESTAVA NA SALA recebe "user-joined" e cria offer ──
-        socket.on("user-joined", async (userId: string, joinedName: string) => {
-          if (userId === socket.id) return;
-
-          const pc = createPeer(userId, socket, joinedName);
-
-          try {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            socket.emit("offer", {
-              target: userId,
-              caller: socket.id,
-              callerName: userName,
-              sdp: offer,
-            });
-          } catch (e) {
-            console.error("Erro ao criar offer:", e);
-          }
-        });
-
-        // ── QUEM ACABOU DE ENTRAR recebe "offer" e responde com answer ──
-        socket.on(
-          "offer",
-          async (payload: {
-            target: string;
-            caller: string;
-            callerName: string;
-            sdp: RTCSessionDescriptionInit;
-          }) => {
-            if (payload.target !== socket.id) return;
-
-            const pc = createPeer(payload.caller, socket, payload.callerName);
-
-            try {
-              await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              socket.emit("answer", {
-                target: payload.caller,
-                caller: socket.id,
-                callerName: userName,
-                sdp: answer,
-              });
-            } catch (e) {
-              console.error("Erro ao responder offer:", e);
-            }
-          }
-        );
-
-        // ── QUEM CRIOU O OFFER recebe o answer ──
-        socket.on(
-          "answer",
-          async (payload: {
-            target: string;
-            caller: string;
-            callerName: string;
-            sdp: RTCSessionDescriptionInit;
-          }) => {
-            if (payload.target !== socket.id) return;
-            const pc = peerConnections.current.get(payload.caller);
-            if (pc && pc.signalingState !== "stable") {
-              try {
-                await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-              } catch (e) {
-                console.error("Erro ao setar answer:", e);
-              }
-            }
-          }
-        );
-
-        // ── ICE CANDIDATES ──
-        socket.on(
-          "ice-candidate",
-          async (payload: { sender: string; candidate: RTCIceCandidateInit }) => {
-            if (payload.sender === socket.id) return;
-            const pc = peerConnections.current.get(payload.sender);
-            if (pc && payload.candidate) {
-              try {
-                await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-              } catch (e) {
-                // ignora erros de ICE candidate fora de ordem
-              }
-            }
-          }
-        );
-
-        // ── CHAT ──
-        socket.on("chat_message", (payload) => {
-          setMessages((prev) => [...prev, payload]);
-        });
-
-        // ── DESCONEXÃO ──
-        socket.on("user-disconnected", (userId: string) => {
-          const pc = peerConnections.current.get(userId);
-          if (pc) {
-            pc.close();
-            peerConnections.current.delete(userId);
-          }
-          setRemoteStreams((prev) => prev.filter((s) => s.id !== userId));
-        });
       } catch (err) {
-        console.error("Erro WebRTC:", err);
-        clearTimeout(failTimeout);
+        console.error("Erro Agora:", err);
         setConnectionError("Permissão de câmera/microfone negada ou dispositivo não encontrado.");
       }
     };
 
-    initWebRTC();
+    init();
 
     return () => {
-      clearTimeout(failTimeout);
-      localStreamRef.current?.getTracks().forEach((t) => t.stop());
-      peerConnections.current.forEach((pc) => pc.close());
-      peerConnections.current.clear();
+      localVideoTrackRef.current?.stop();
+      localVideoTrackRef.current?.close();
+      localAudioTrackRef.current?.stop();
+      localAudioTrackRef.current?.close();
+      client.leave();
       socket.disconnect();
     };
   }, [roomName]);
 
+  // Reproduz vídeo remoto quando o elemento é montado
+  const playRemoteVideo = useCallback((uid: string | number, videoTrack: any) => {
+    const el = document.getElementById(`video-remote-${uid}`);
+    if (el && videoTrack) {
+      videoTrack.play(el);
+    }
+  }, []);
+
   const toggleMic = () => {
-    const track = localStreamRef.current?.getAudioTracks()[0];
+    const track = localAudioTrackRef.current;
     if (track) {
-      track.enabled = !micOn;
+      track.setEnabled(!micOn);
       setMicOn(!micOn);
     }
   };
 
   const toggleVideo = () => {
-    const track = localStreamRef.current?.getVideoTracks()[0];
+    const track = localVideoTrackRef.current;
     if (track) {
-      track.enabled = !videoOn;
+      track.setEnabled(!videoOn);
       setVideoOn(!videoOn);
     }
   };
@@ -378,12 +291,9 @@ export default function Room() {
       <main className="videos-grid" data-count={gridCount}>
         {/* Vídeo local */}
         <div className="video-tile" style={{ display: isVisivel(0) ? "block" : "none" }}>
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }}
+          <div
+            ref={localVideoElRef}
+            style={{ width: "100%", height: "100%", transform: "scaleX(-1)" }}
           />
           <div className="tile-label">
             {userName} (Você) {isHost ? "👑" : ""} {!micOn && "🔇"}
@@ -391,20 +301,18 @@ export default function Room() {
         </div>
 
         {/* Vídeos remotos */}
-        {remoteStreams.map((remote, index) => (
+        {remoteUsers.map((remote, index) => (
           <div
-            key={remote.id}
+            key={remote.uid}
             className="video-tile"
             style={{ display: isVisivel(index + 1) ? "block" : "none" }}
           >
-            <video
-              id={`video-${remote.id}`}
-              autoPlay
-              playsInline
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            <div
+              id={`video-remote-${remote.uid}`}
+              style={{ width: "100%", height: "100%" }}
               ref={(el) => {
-                if (el && remote.stream && el.srcObject !== remote.stream) {
-                  el.srcObject = remote.stream;
+                if (el && remote.videoTrack) {
+                  remote.videoTrack.play(el);
                 }
               }}
             />
@@ -431,7 +339,6 @@ export default function Room() {
           {videoOn ? <Video size={22} /> : <VideoOff size={22} />}
         </button>
 
-        {/* Botão de copiar link — visível para TODOS (não só host) */}
         <button
           className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition-colors"
           onClick={copyLink}
@@ -488,8 +395,8 @@ export default function Room() {
                   <button
                     key={tab}
                     className={`flex-1 p-3 font-medium transition-colors ${activeTab === tab
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500"
+                        ? "text-blue-600 border-b-2 border-blue-600"
+                        : "text-gray-500"
                       }`}
                     onClick={() => setActiveTab(tab)}
                   >
@@ -532,10 +439,10 @@ export default function Room() {
                         )}
                       </div>
 
-                      {remoteStreams.map((remote) => (
-                        <div key={remote.id} className="flex items-center gap-3">
+                      {remoteUsers.map((remote) => (
+                        <div key={remote.uid} className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm">
-                            {(remote.name && remote.name.length > 0) ? remote.name[0].toUpperCase() : "P"}
+                            {remote.name?.[0]?.toUpperCase() || "P"}
                           </div>
                           <p className="font-medium text-sm flex-1">{remote.name || "Participante"}</p>
                         </div>
@@ -565,8 +472,8 @@ export default function Room() {
                             </div>
                             <div
                               className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.sender === userName
-                                ? "bg-blue-100 text-blue-900 rounded-tr-sm"
-                                : "bg-gray-100 text-gray-800 rounded-tl-sm"
+                                  ? "bg-blue-100 text-blue-900 rounded-tr-sm"
+                                  : "bg-gray-100 text-gray-800 rounded-tl-sm"
                                 }`}
                             >
                               {msg.text}

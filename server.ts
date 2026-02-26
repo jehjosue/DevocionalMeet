@@ -52,6 +52,11 @@ async function startServer() {
       // Avisa os outros com o socket.id (autoritativo) e o nome
       socket.to(roomId).emit("user-joined", userId, userName || "Participante");
 
+      // Repassa anúncio de nome para todos na sala (usado pelo Agora)
+      socket.on("announce-name", (_roomId: string, uid: string | number, name: string) => {
+        socket.to(_roomId).emit("user-name", uid, name);
+      });
+
       socket.on("offer", (payload) => {
         io.to(payload.target).emit("offer", payload);
       });
