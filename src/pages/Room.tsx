@@ -35,6 +35,13 @@ export default function Room() {
   const screenTrackRef = useRef<any>(null);
 
   useEffect(() => {
+    // Timeout de segurança: se travar por 15s, mostra mensagem de erro
+    const failTimeout = setTimeout(() => {
+      if (!joined) {
+        setConnectionError("O servidor não respondeu. Verifique sua conexão ou recarregue a página.");
+      }
+    }, 15000);
+
     const initAgora = async () => {
       if (!appId || !roomName) return;
 
@@ -44,16 +51,9 @@ export default function Room() {
           return;
         }
 
-        // Cria o cliet com a role config inicial
-        clientRef.current = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
-
-        try {
-          // Em modo live, o recomendado geralmente é dar setClientRole *antes* do join
-          console.log("Definindo Role para:", role);
-          await clientRef.current.setClientRole(role as "host" | "audience");
-        } catch (roleErr) {
-          console.error("Erro ao definir role:", roleErr);
-        }
+        // Usa modo 'rtc' - compatível com App IDs de Testing (sem token)
+        // A separação Host/Audience é feita SOMENTE na interface
+        clientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
         try {
           console.log("Tentando Join com appID:", appId, "Room:", roomName);
@@ -61,11 +61,12 @@ export default function Room() {
           console.log("Join efetuado com sucesso!");
         } catch (joinErr: any) {
           console.error("Agora Join Error:", joinErr);
-          if (joinErr?.code === "CAN_NOT_GET_GATEWAY_SERVER" || joinErr?.message?.toLowerCase().includes("token") || joinErr?.code === "ERR_DYNAMIC_KEY_TIMEOUT" || joinErr?.code === "ERR_INVALID_TOKEN") {
-            setConnectionError("Erro de Autenticação: O seu projeto no Agora Console está configurado como 'Seguro' (Secure Mode). Isso exige um Servidor de Tokens. Para funcionar sem servidor (como agora), crie um novo projeto no Agora selecionando 'Testing Mode' (apenas App ID).");
+          if (joinErr?.code === "CAN_NOT_GET_GATEWAY_SERVER" || joinErr?.message?.toLowerCase().includes("token")) {
+            setConnectionError("Erro de Autenticação: Seu App ID precisa estar em modo 'Testing' no Agora Console.");
           } else {
-            setConnectionError(`Falha ao entrar na sala. Erro: ${joinErr.message || JSON.stringify(joinErr)}`);
+            setConnectionError(`Falha ao entrar na sala. Verifique sua conexão.`);
           }
+          clearTimeout(failTimeout);
           return; // Para a execução se falhar
         }
 
@@ -96,6 +97,7 @@ export default function Room() {
           }
         }
 
+        clearTimeout(failTimeout);
         setJoined(true);
 
         clientRef.current.on("user-published", async (user: any, mediaType: string) => {
@@ -125,12 +127,15 @@ export default function Room() {
 
       } catch (err) {
         console.error("Agora Error:", err);
+        clearTimeout(failTimeout);
+        setConnectionError("Erro inesperado ao conectar. Recarregue a página.");
       }
     };
 
     initAgora();
 
     return () => {
+      clearTimeout(failTimeout);
       localTracksRef.current.forEach(t => {
         if (t) { t.stop(); t.close(); }
       });
