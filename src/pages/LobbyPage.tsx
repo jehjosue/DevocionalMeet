@@ -12,6 +12,7 @@ export default function LobbyPage() {
     const [micOn, setMicOn] = useState(true);
     const [videoOn, setVideoOn] = useState(true);
     const [streamReady, setStreamReady] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const localVideoRef = useRef<HTMLDivElement>(null);
     const localTracksRef = useRef<any[]>([]);
@@ -19,6 +20,13 @@ export default function LobbyPage() {
     useEffect(() => {
         const startPreview = async () => {
             try {
+                // Verificar se o script do Agora carregou
+                if (typeof AgoraRTC === "undefined") {
+                    console.log("Aguardando Agora SDK...");
+                    setTimeout(startPreview, 1000);
+                    return;
+                }
+
                 const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
                 localTracksRef.current = [audioTrack, videoTrack];
 
@@ -26,8 +34,9 @@ export default function LobbyPage() {
                     videoTrack.play(localVideoRef.current);
                 }
                 setStreamReady(true);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("Preview error:", err);
+                setError("Não foi possível acessar sua câmera/microfone. Por favor, autorize o acesso.");
             }
         };
 
@@ -78,7 +87,14 @@ export default function LobbyPage() {
                             </div>
                         )}
 
-                        {!streamReady && videoOn && (
+                        {error && (
+                            <div className="error-overlay">
+                                <p>{error}</p>
+                                <button onClick={() => window.location.reload()}>Tentar Novamente</button>
+                            </div>
+                        )}
+
+                        {!streamReady && !error && videoOn && (
                             <div className="loading-overlay">
                                 <div className="spinner" />
                             </div>
@@ -137,10 +153,10 @@ export default function LobbyPage() {
                         <button
                             className="enter-btn"
                             onClick={handleJoin}
-                            disabled={!userName.trim()}
+                            disabled={!userName.trim() || !streamReady}
                         >
                             <Play fill="currentColor" size={16} />
-                            Entrar na reunião
+                            {!userName.trim() ? "Digite seu nome" : !streamReady ? "Aguardando Câmera..." : "Entrar na reunião"}
                         </button>
                     </div>
 
@@ -256,6 +272,16 @@ export default function LobbyPage() {
         .footer-note { font-size: 0.7rem; color: rgba(240,244,255,0.3); line-height: 1.5; margin-top: 2rem; max-width: 300px; }
 
         .spinner { width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #2563eb; border-radius: 50%; animation: spin 1s linear infinite; }
+        
+        .error-overlay {
+          position: absolute; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px);
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          padding: 2rem; text-align: center; gap: 1rem; color: #f87171; z-index: 20;
+        }
+        .error-overlay button {
+          background: #2563eb; color: #fff; border: none; padding: 0.75rem 1.5rem; border-radius: 12px; cursor: pointer;
+        }
+
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
         </div>
