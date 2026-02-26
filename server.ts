@@ -18,7 +18,6 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const httpServer = http.createServer(app);
 
-  // CORS para requisições HTTP normais
   app.use(
     cors({
       origin: ALLOWED_ORIGINS,
@@ -36,8 +35,10 @@ async function startServer() {
   });
 
   io.on("connection", (socket) => {
-    // join-room agora recebe o nome do participante também
-    socket.on("join-room", (roomId: string, userId: string, userName: string) => {
+    // O servidor usa SEMPRE o seu próprio socket.id — ignora o que o cliente manda
+    socket.on("join-room", (roomId: string, _clientId: string, userName: string) => {
+      const userId = socket.id; // socket.id aqui é sempre definido e correto
+
       // Sai de salas anteriores para evitar mistura
       const salasAnteriores = Array.from(socket.rooms).filter((r) => r !== socket.id);
       salasAnteriores.forEach((sala) => {
@@ -46,8 +47,9 @@ async function startServer() {
       });
 
       socket.join(roomId);
+      console.log(`[join-room] User ${userId} (${userName}) entrou em: ${roomId}`);
 
-      // Avisa os outros com o nome de quem entrou
+      // Avisa os outros com o socket.id (autoritativo) e o nome
       socket.to(roomId).emit("user-joined", userId, userName || "Participante");
 
       socket.on("offer", (payload) => {
@@ -71,6 +73,7 @@ async function startServer() {
       });
 
       socket.on("disconnect", () => {
+        console.log(`[disconnect] User ${userId} saiu de: ${roomId}`);
         socket.to(roomId).emit("user-disconnected", userId);
       });
     });

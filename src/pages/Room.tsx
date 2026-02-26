@@ -157,8 +157,16 @@ export default function Room() {
         setJoined(true);
         clearTimeout(failTimeout);
 
-        // Entra na sala passando o nome junto
-        socket.emit("join-room", roomName, socket.id, userName);
+        // Aguarda o socket estar conectado antes de entrar na sala
+        // Garante que socket.id esteja definido no servidor
+        const emitJoinRoom = () => {
+          socket.emit("join-room", roomName, socket.id, userName);
+        };
+        if (socket.connected) {
+          emitJoinRoom();
+        } else {
+          socket.once("connect", emitJoinRoom);
+        }
 
         // ── QUEM JÁ ESTAVA NA SALA recebe "user-joined" e cria offer ──
         socket.on("user-joined", async (userId: string, joinedName: string) => {
