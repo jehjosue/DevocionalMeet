@@ -16,6 +16,7 @@ export default function Room() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [participantsCount, setParticipantsCount] = useState(1);
   const [copied, setCopied] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const clientRef = useRef<any>(null);
   const localTracksRef = useRef<any[]>([]);
@@ -35,7 +36,18 @@ export default function Room() {
         }
 
         clientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-        await clientRef.current.join(appId, roomName, null, null);
+
+        try {
+          await clientRef.current.join(appId, roomName, null, null);
+        } catch (joinErr: any) {
+          console.error("Agora Join Error:", joinErr);
+          if (joinErr?.code === "CAN_NOT_GET_GATEWAY_SERVER" || joinErr?.message?.toLowerCase().includes("token") || joinErr?.code === "ERR_DYNAMIC_KEY_TIMEOUT" || joinErr?.code === "ERR_INVALID_TOKEN") {
+            setConnectionError("Erro de Autenticação: O seu projeto no Agora Console está configurado como 'Seguro' (Secure Mode). Isso exige um Servidor de Tokens. Para funcionar sem servidor (como agora), crie um novo projeto no Agora selecionando 'Testing Mode' (apenas App ID).");
+          } else {
+            setConnectionError("Falha ao entrar na sala. Verifique sua conexão e se o App ID está correto.");
+          }
+          return; // Para a execução se falhar
+        }
 
         const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(err => {
           console.warn("Câmera/Mic recusados, entrando apenas como espectador.");
@@ -141,10 +153,21 @@ export default function Room() {
           className={`meet-grid count-${participantsCount}`}
         />
 
-        {!joined && (
+        {!joined && !connectionError && (
           <div className="meet-loader">
             <div className="loader-spinner" />
             <p>Conectando à reunião...</p>
+          </div>
+        )}
+
+        {connectionError && (
+          <div className="meet-error">
+            <Shield size={48} style={{ color: "#ef4444", marginBottom: "1rem" }} />
+            <h3>Falha na Conexão</h3>
+            <p>{connectionError}</p>
+            <button onClick={() => navigate("/")} className="error-back-btn">
+              Voltar para o Início
+            </button>
           </div>
         )}
       </main>
@@ -294,8 +317,12 @@ export default function Room() {
         }
         video { object-fit: cover !important; }
 
-        /* LOADER */
-        .meet-loader { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+        /* LOADER & ERROR */
+        .meet-loader, .meet-error { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; text-align: center; padding: 2rem; max-width: 500px; margin: 0 auto; z-index: 10; position: absolute; inset: 0; }
+        .meet-error { background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); border-radius: 24px; border: 1px solid rgba(239,68,68,0.3); position: relative; height: fit-content; margin-top: auto; margin-bottom: auto; }
+        .meet-error p { color: rgba(255,255,255,0.7); line-height: 1.5; font-size: 0.9rem; }
+        .error-back-btn { background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 12px; cursor: pointer; font-weight: 600; margin-top: 1rem; transition: 0.2s; }
+        .error-back-btn:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(37,99,235,0.4); }
         .loader-spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #8ab4f8; border-radius: 50%; animation: spin 1s linear infinite; }
 
         /* BOTTOM BAR */

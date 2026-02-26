@@ -20,7 +20,6 @@ export default function LobbyPage() {
     useEffect(() => {
         const startPreview = async () => {
             try {
-                // Verificar se o script do Agora carregou
                 if (typeof AgoraRTC === "undefined") {
                     console.log("Aguardando Agora SDK...");
                     setTimeout(startPreview, 1000);
@@ -36,7 +35,10 @@ export default function LobbyPage() {
                 setStreamReady(true);
             } catch (err: any) {
                 console.error("Preview error:", err);
-                setError("Não foi possível acessar sua câmera/microfone. Por favor, autorize o acesso.");
+                setError("Câmera/Microfone não detectados ou permissão negada. Você entrará apenas como ouvinte.");
+                setMicOn(false);
+                setVideoOn(false);
+                setStreamReady(true); // Permite avançar mesmo sem mídia
             }
         };
 
@@ -90,7 +92,6 @@ export default function LobbyPage() {
                         {error && (
                             <div className="error-overlay">
                                 <p>{error}</p>
-                                <button onClick={() => window.location.reload()}>Tentar Novamente</button>
                             </div>
                         )}
 
