@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, Share2, MessageSquare, Menu, X, Settings } from "lucide-react";
+import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "motion/react";
 
 declare const AgoraRTC: any;
@@ -142,6 +143,23 @@ export default function Room() {
     }
   };
 
+  useEffect(() => {
+    if (!roomName) return;
+
+    // Conecta no canal específico da sala para o chat
+    const channel = supabase.channel(`room_${roomName}`);
+
+    channel
+      .on('broadcast', { event: 'chat_message' }, (payload) => {
+        setMessages((prev) => [...prev, payload.payload]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomName]);
+
   const toggleScreenShare = async () => {
     if (!isScreenSharing) {
       try {
@@ -202,11 +220,10 @@ export default function Room() {
     }
   };
 
-  const sendMessage = (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    // Aqui no futuro ligamos ao Supabase Realtime
     const msg = {
       id: Math.random().toString(),
       sender: userName,
@@ -216,6 +233,15 @@ export default function Room() {
 
     setMessages(prev => [...prev, msg]);
     setNewMessage("");
+
+    // Dispara via Supabase para todos na sala
+    if (roomName) {
+      await supabase.channel(`room_${roomName}`).send({
+        type: 'broadcast',
+        event: 'chat_message',
+        payload: msg
+      });
+    }
   };
 
   const copyLink = () => {
