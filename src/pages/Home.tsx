@@ -30,9 +30,18 @@ export default function Home() {
   };
 
   const createRoom = () => {
+    // Aqui geramos a URL. Se for só letras/números que o usuário digitou no botão "Nome", ele usa,
+    // caso contrário gera um aleatório (se o input de nome da sala não existir, vamos usar o gerador padrão).
+    // Nota: Como não temos input de "Nome da Sala" na Home ainda, vamos manter o gerador, mas 
+    // com o parâmetro role correto.
     const name = generateRoomName();
     const params = new URLSearchParams();
-    if (isLeader && roomPassword) params.set("pwd", roomPassword);
+    if (isLeader) {
+      params.set("role", "host");
+      if (roomPassword) params.set("pwd", roomPassword);
+    } else {
+      params.set("role", "audience");
+    }
     const query = params.toString() ? `?${params.toString()}` : "";
     navigate(`/pre/${name}${query}`);
   };
@@ -41,7 +50,8 @@ export default function Home() {
     e.preventDefault();
     if (roomUrl) {
       const name = roomUrl.includes("/") ? roomUrl.split("/").pop() : roomUrl;
-      if (name) navigate(`/pre/${name}`);
+      // Quem entra por link sempre é audience por padrão (a menos que o link tenha ?role=host)
+      if (name) navigate(`/pre/${name}?role=audience`);
     }
   };
 

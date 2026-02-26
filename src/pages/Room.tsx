@@ -23,7 +23,15 @@ export default function Room() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
 
   const userName = searchParams.get("nome") || localStorage.getItem("devocional_user_name") || "Participante";
+  const role = searchParams.get("role") || "audience";
+  const isHost = role === "host";
   const appId = (import.meta as any).env.VITE_AGORA_APP_ID;
+
+  const [activeTab, setActiveTab] = useState<"people" | "chat">("people");
+  const [messages, setMessages] = useState<{ id: string, sender: string, text: string, time: string }[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const screenTrackRef = useRef<any>(null);
 
   useEffect(() => {
     const initAgora = async () => {
@@ -35,7 +43,9 @@ export default function Room() {
           return;
         }
 
-        clientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+        // Usa o modo "live" (Broadcast) com a role correta
+        clientRef.current = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
+        await clientRef.current.setClientRole(role as "host" | "audience");
 
         try {
           await clientRef.current.join(appId, roomName, null, null);
@@ -49,27 +59,30 @@ export default function Room() {
           return; // Para a execução se falhar
         }
 
-        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(err => {
-          console.warn("Câmera/Mic recusados, entrando apenas como espectador.");
-          return [null, null];
-        });
+        // Só host cria e publica as faixas locais
+        if (isHost) {
+          const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(err => {
+            console.warn("Câmera/Mic recusados, você não conseguirá transmitir vídeo/áudio.");
+            return [null, null];
+          });
 
-        if (audioTrack || videoTrack) {
-          localTracksRef.current = [audioTrack, videoTrack];
+          if (audioTrack || videoTrack) {
+            localTracksRef.current = [audioTrack, videoTrack];
 
-          if (videoTrack) {
-            const localPlayer = document.createElement("div");
-            localPlayer.className = "participant-card local";
-            localPlayer.id = "local-player";
-            const label = document.createElement("div");
-            label.className = "participant-label";
-            label.innerText = `${userName} (Você)`;
-            localPlayer.appendChild(label);
-            videoContainerRef.current?.append(localPlayer);
-            videoTrack.play(localPlayer);
+            if (videoTrack) {
+              const localPlayer = document.createElement("div");
+              localPlayer.className = "participant-card local";
+              localPlayer.id = "local-player";
+              const label = document.createElement("div");
+              label.className = "participant-label";
+              label.innerText = `${userName} (Você)`;
+              localPlayer.appendChild(label);
+              videoContainerRef.current?.append(localPlayer);
+              videoTrack.play(localPlayer);
+            }
+
+            await clientRef.current.publish(localTracksRef.current.filter(t => t !== null));
           }
-
-          await clientRef.current.publish(localTracksRef.current.filter(t => t !== null));
         }
 
         setJoined(true);
@@ -129,6 +142,82 @@ export default function Room() {
     }
   };
 
+  const toggleScreenShare = async () => {
+    if (!isScreenSharing) {
+      try {
+        const screenTrack = await AgoraRTC.createScreenVideoTrack({
+          encoderConfig: "1080p_1",
+          optimizationMode: "detail"
+        });
+
+        screenTrackRef.current = screenTrack;
+
+        // Substitui a faixa de vídeo atual pela da tela
+        if (localTracksRef.current[1]) {
+          await clientRef.current.replaceTrack(localTracksRef.current[1], screenTrack);
+        } else {
+          // Se ele não tinha vídeo antes
+          await clientRef.current.publish(screenTrack);
+        }
+
+        // Toca a tela localmente
+        const localPlayer = document.getElementById("local-player");
+        if (localPlayer) {
+          screenTrack.play(localPlayer);
+        }
+
+        setIsScreenSharing(true);
+
+        // Se o usuário parar o compartilhamento pelo botão nativo do navegador
+        screenTrack.on("track-ended", async () => {
+          stopScreenShare();
+        });
+
+      } catch (err) {
+        console.error("Erro ao compartilhar tela:", err);
+      }
+    } else {
+      stopScreenShare();
+    }
+  };
+
+  const stopScreenShare = async () => {
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop();
+      screenTrackRef.current.close();
+
+      // Restaura a câmera normal
+      if (localTracksRef.current[1]) {
+        await clientRef.current.replaceTrack(screenTrackRef.current, localTracksRef.current[1]);
+        const localPlayer = document.getElementById("local-player");
+        if (localPlayer) {
+          localTracksRef.current[1].play(localPlayer);
+        }
+      } else {
+        await clientRef.current.unpublish(screenTrackRef.current);
+      }
+
+      screenTrackRef.current = null;
+      setIsScreenSharing(false);
+    }
+  };
+
+  const sendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    // Aqui no futuro ligamos ao Supabase Realtime
+    const msg = {
+      id: Math.random().toString(),
+      sender: userName,
+      text: newMessage,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setMessages(prev => [...prev, msg]);
+    setNewMessage("");
+  };
+
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
@@ -184,19 +273,33 @@ export default function Room() {
 
         {/* Center: Main Controls */}
         <div className="controls-center">
-          <button
-            className={`meet-btn ${!micOn ? 'danger' : ''}`}
-            onClick={toggleMic}
-          >
-            {micOn ? <Mic size={24} /> : <MicOff size={24} />}
-          </button>
+          {isHost ? (
+            <>
+              <button
+                className={`meet-btn ${!micOn ? 'danger' : ''}`}
+                onClick={toggleMic}
+              >
+                {micOn ? <Mic size={24} /> : <MicOff size={24} />}
+              </button>
 
-          <button
-            className={`meet-btn ${!videoOn ? 'danger' : ''}`}
-            onClick={toggleVideo}
-          >
-            {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
-          </button>
+              <button
+                className={`meet-btn ${!videoOn ? 'danger' : ''}`}
+                onClick={toggleVideo}
+              >
+                {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
+              </button>
+
+              <button
+                className={`meet-btn ${isScreenSharing ? 'active-share' : ''}`}
+                onClick={toggleScreenShare}
+                title="Compartilhar Tela"
+              >
+                <Share2 size={24} />
+              </button>
+            </>
+          ) : (
+            <div className="audience-badge">Modo de Exibição (Ouvinte)</div>
+          )}
 
           <button className="meet-btn exit" onClick={() => navigate("/")}>
             <LogOut size={24} />
@@ -239,27 +342,71 @@ export default function Room() {
               </div>
 
               <div className="sidebar-tabs">
-                <button className="tab active">Pessoas</button>
-                <button className="tab">Informações</button>
+                <button
+                  className={`tab ${activeTab === 'people' ? 'active' : ''}`}
+                  onClick={() => setActiveTab("people")}
+                >
+                  Pessoas
+                </button>
+                <button
+                  className={`tab ${activeTab === 'chat' ? 'active' : ''}`}
+                  onClick={() => setActiveTab("chat")}
+                >
+                  Chat
+                </button>
               </div>
 
               <div className="sidebar-content">
-                <div className="section-label">GERENCIAR REUNIÃO</div>
-                <button className="sidebar-action-btn" onClick={copyLink}>
-                  <Copy size={18} />
-                  {copied ? "Link Copiado!" : "Copiar informações de participação"}
-                </button>
+                {activeTab === "people" ? (
+                  <>
+                    <div className="section-label">GERENCIAR REUNIÃO</div>
+                    <button className="sidebar-action-btn" onClick={copyLink}>
+                      <Copy size={18} />
+                      {copied ? "Link Copiado!" : "Copiar informações de participação"}
+                    </button>
 
-                <div className="section-label">PARTICIPANTES</div>
-                <div className="participant-list">
-                  <div className="participant-item">
-                    <div className="p-avatar">{userName[0]}</div>
-                    <div className="p-name">{userName} (Você)</div>
-                    <div className="p-icons">
-                      {micOn ? <Mic size={14} /> : <MicOff size={14} className="text-red-500" />}
+                    <div className="section-label">PARTICIPANTES</div>
+                    <div className="participant-list">
+                      <div className="participant-item">
+                        <div className="p-avatar">{userName[0]?.toUpperCase() || "?"}</div>
+                        <div className="p-name">{userName} (Você) {isHost ? "👑" : "👀"}</div>
+                        <div className="p-icons">
+                          {isHost ? (micOn ? <Mic size={14} /> : <MicOff size={14} className="text-red-500" />) : <span className="text-xs">Ouvinte</span>}
+                        </div>
+                      </div>
                     </div>
+                  </>
+                ) : (
+                  <div className="chat-container">
+                    <div className="chat-messages">
+                      {messages.length === 0 ? (
+                        <div className="empty-chat">
+                          <MessageSquare size={32} style={{ opacity: 0.2, margin: "0 auto 10px" }} />
+                          <p>Nenhuma mensagem ainda.<br />Seja o primeiro a dizer olá!</p>
+                        </div>
+                      ) : (
+                        messages.map((msg) => (
+                          <div key={msg.id} className={`chat-msg ${msg.sender === userName ? 'mine' : ''}`}>
+                            <div className="msg-header">
+                              <strong>{msg.sender === userName ? "Você" : msg.sender}</strong>
+                              <span>{msg.time}</span>
+                            </div>
+                            <div className="msg-bubble">{msg.text}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <form className="chat-input-area" onSubmit={sendMessage}>
+                      <input
+                        type="text"
+                        placeholder="Envie uma mensagem..."
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                      />
+                      <button type="submit" disabled={!newMessage.trim()}>Enviar</button>
+                    </form>
                   </div>
-                </div>
+                )}
               </div>
             </motion.aside>
           </>
@@ -340,6 +487,7 @@ export default function Room() {
         .meet-btn:hover { background: #4a4e51; }
         .meet-btn.danger { background: #ea4335; }
         .meet-btn.danger:hover { background: #d93025; }
+        .meet-btn.active-share { background: #8ab4f8; color: #202124; }
         .meet-btn.exit { background: #ea4335; border-radius: 24px; width: 64px; }
         .meet-btn.secondary { width: auto; border-radius: 24px; padding: 0 1rem; gap: 0.5rem; background: transparent; }
         .meet-btn.secondary:hover { background: rgba(255,255,255,0.05); }
@@ -362,7 +510,7 @@ export default function Room() {
         .tab { flex: 1; padding: 1rem; border: none; background: none; font-weight: 500; color: #5f6368; cursor: pointer; }
         .tab.active { color: #1a73e8; border-bottom: 2px solid #1a73e8; }
 
-        .sidebar-content { padding: 1.5rem; flex: 1; overflow-y: auto; }
+        .sidebar-content { padding: 1.5rem; flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
         .section-label { font-size: 0.7rem; font-weight: 600; color: #5f6368; letter-spacing: 0.05em; margin: 1.5rem 0 0.75rem; }
         .sidebar-action-btn {
             width: 100%; padding: 0.75rem 1rem; border: 1px solid #dadce0; border-radius: 8px;
@@ -375,8 +523,25 @@ export default function Room() {
         .p-name { flex: 1; font-size: 0.9rem; }
         .p-icons { color: #5f6368; }
 
+        /* CHAT STYLE */
+        .chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; margin: -1.5rem; }
+        .chat-messages { flex: 1; padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
+        .empty-chat { margin: auto; text-align: center; color: #9aa0a6; font-size: 0.85rem; }
+        .chat-msg { display: flex; flex-direction: column; }
+        .chat-msg.mine { align-items: flex-end; }
+        .msg-header { display: flex; gap: 0.5rem; font-size: 0.75rem; color: #5f6368; margin-bottom: 0.25rem; align-items: baseline; }
+        .msg-bubble { background: #f1f3f4; padding: 0.6rem 1rem; border-radius: 0 16px 16px 16px; font-size: 0.9rem; color: #202124; max-width: 85%; word-break: break-word; }
+        .chat-msg.mine .msg-bubble { background: #e8f0fe; border-radius: 16px 0 16px 16px; }
+        .chat-input-area { padding: 1rem; border-top: 1px solid #e8eaed; display: flex; gap: 0.5rem; background: white; }
+        .chat-input-area input { flex: 1; padding: 0.75rem 1rem; border-radius: 24px; border: 1px solid #dadce0; outline: none; transition: 0.2s; }
+        .chat-input-area input:focus { border-color: #1a73e8; }
+        .chat-input-area button { background: none; border: none; color: #1a73e8; font-weight: 600; cursor: pointer; padding: 0 0.5rem; }
+        .chat-input-area button:disabled { color: #dadce0; cursor: not-allowed; }
+
         .desktop-only { display: flex; }
         @media (max-width: 800px) { .desktop-only { display: none; } }
+        
+        .audience-badge { background: rgba(255,255,255,0.1); color: white; padding: 0.5rem 1rem; border-radius: 24px; font-size: 0.8rem; font-weight: 500; }
 
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
