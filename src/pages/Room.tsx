@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Copy, LogOut, Shield, CheckCircle2, Mic, MicOff, Video, VideoOff, Users, Info, Settings, Share2, MessageSquare } from "lucide-react";
+import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, Share2, MessageSquare, Menu, X, Settings } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
 declare const AgoraRTC: any;
 
@@ -9,12 +10,12 @@ export default function Room() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const [copied, setCopied] = useState(false);
   const [joined, setJoined] = useState(false);
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [participantsCount, setParticipantsCount] = useState(1);
+  const [copied, setCopied] = useState(false);
 
   const clientRef = useRef<any>(null);
   const localTracksRef = useRef<any[]>([]);
@@ -28,41 +29,49 @@ export default function Room() {
       if (!appId || !roomName) return;
 
       try {
+        if (typeof AgoraRTC === "undefined") {
+          setTimeout(initAgora, 1000);
+          return;
+        }
+
         clientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         await clientRef.current.join(appId, roomName, null, null);
 
-        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-        localTracksRef.current = [audioTrack, videoTrack];
+        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(err => {
+          console.warn("Câmera/Mic recusados, entrando apenas como espectador.");
+          return [null, null];
+        });
 
-        // Renderizar vídeo local
-        const localPlayer = document.createElement("div");
-        localPlayer.className = "participant-card local";
-        localPlayer.id = "local-player";
+        if (audioTrack || videoTrack) {
+          localTracksRef.current = [audioTrack, videoTrack];
 
-        const label = document.createElement("div");
-        label.className = "participant-label";
-        label.innerText = `${userName} (Você)`;
-        localPlayer.appendChild(label);
+          if (videoTrack) {
+            const localPlayer = document.createElement("div");
+            localPlayer.className = "participant-card local";
+            localPlayer.id = "local-player";
+            const label = document.createElement("div");
+            label.className = "participant-label";
+            label.innerText = `${userName} (Você)`;
+            localPlayer.appendChild(label);
+            videoContainerRef.current?.append(localPlayer);
+            videoTrack.play(localPlayer);
+          }
 
-        videoContainerRef.current?.append(localPlayer);
-        videoTrack.play(localPlayer);
+          await clientRef.current.publish(localTracksRef.current.filter(t => t !== null));
+        }
 
-        await clientRef.current.publish(localTracksRef.current);
         setJoined(true);
 
-        // Usuário Entrou
         clientRef.current.on("user-published", async (user: any, mediaType: string) => {
           await clientRef.current.subscribe(user, mediaType);
           if (mediaType === "video") {
             const remotePlayer = document.createElement("div");
             remotePlayer.className = "participant-card";
             remotePlayer.id = user.uid.toString();
-
             const rLabel = document.createElement("div");
             rLabel.className = "participant-label";
             rLabel.innerText = "Participante";
             remotePlayer.appendChild(rLabel);
-
             videoContainerRef.current?.append(remotePlayer);
             user.videoTrack.play(remotePlayer);
             setParticipantsCount(prev => prev + 1);
@@ -72,7 +81,6 @@ export default function Room() {
           }
         });
 
-        // Usuário Saiu
         clientRef.current.on("user-unpublished", (user: any) => {
           const remotePlayer = document.getElementById(user.uid.toString());
           remotePlayer?.remove();
@@ -88,8 +96,7 @@ export default function Room() {
 
     return () => {
       localTracksRef.current.forEach(t => {
-        t.stop();
-        t.close();
+        if (t) { t.stop(); t.close(); }
       });
       clientRef.current?.leave();
       if (videoContainerRef.current) videoContainerRef.current.innerHTML = "";
@@ -110,263 +117,241 @@ export default function Room() {
     }
   };
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.origin + "/join");
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="room-container">
-      {/* ── SIDEBAR (Inspirada no Jitsi mas Premium) ── */}
-      <aside className={`sidebar ${showSidebar ? "open" : "closed"}`}>
-        <div className="sidebar-header">
-          <div className="logo-wrap">
-            <Shield className="logo-icon" />
+    <div className="meet-container">
+      {/* ── TOP INFO (Google Meet style) ── */}
+      <div className="meet-top-bar">
+        <div className="meet-room-info">
+          <span className="room-code">{roomName}</span>
+          <span className="divider">|</span>
+          <span className="room-time">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+      </div>
+
+      {/* ── MAIN CONTENT (Grid) ── */}
+      <main className="meet-main">
+        <div
+          ref={videoContainerRef}
+          className={`meet-grid count-${participantsCount}`}
+        />
+
+        {!joined && (
+          <div className="meet-loader">
+            <div className="loader-spinner" />
+            <p>Conectando à reunião...</p>
+          </div>
+        )}
+      </main>
+
+      {/* ── BOTTOM CONTROLS (Google Meet style) ── */}
+      <div className="meet-bottom-bar">
+        {/* Left Side: Clock/Info hide on mobile or move to center */}
+        <div className="controls-left desktop-only">
+          <div className="meet-logo">
+            <Shield size={20} className="text-blue-500" />
             <span>DevocionalMeet</span>
           </div>
         </div>
 
-        <div className="sidebar-content">
-          <div className="room-info-card">
-            <p className="label">REUNIÃO</p>
-            <h3>{roomName?.replace(/-/g, " ")}</h3>
-            <div className="status-badge">
-              <div className="pulse-dot" />
-              AO VIVO
-            </div>
-          </div>
-
-          <nav className="sidebar-nav">
-            <div className="nav-item active">
-              <Users size={18} />
-              <span>Participantes ({participantsCount})</span>
-            </div>
-            <div className="nav-item" onClick={handleCopyLink}>
-              <Share2 size={18} />
-              <span>{copied ? "Link Copiado!" : "Convidar pessoas"}</span>
-            </div>
-            <div className="nav-item">
-              <MessageSquare size={18} />
-              <span>Chat</span>
-            </div>
-          </nav>
-
-          <div className="warning-box">
-            <Info size={16} />
-            <p>Se estiver apenas assistindo, mantenha o microfone desligado por respeito à comunhão.</p>
-          </div>
-        </div>
-
-        <div className="sidebar-footer">
-          <div className="user-profile">
-            <div className="avatar">{userName[0]?.toUpperCase()}</div>
-            <div className="user-text">
-              <p className="u-name">{userName}</p>
-              <p className="u-status">Conectado</p>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* ── MAIN AREA ── */}
-      <main className="main-viewport">
-        {/* Top Header */}
-        <header className="room-header">
-          <button className="sidebar-toggle" onClick={() => setShowSidebar(!showSidebar)}>
-            <div className="toggle-line" />
-            <div className="toggle-line" />
-            <div className="toggle-line" />
+        {/* Center: Main Controls */}
+        <div className="controls-center">
+          <button
+            className={`meet-btn ${!micOn ? 'danger' : ''}`}
+            onClick={toggleMic}
+          >
+            {micOn ? <Mic size={24} /> : <MicOff size={24} />}
           </button>
 
-          <div className="header-room-title">
-            <span>{roomName}</span>
-          </div>
+          <button
+            className={`meet-btn ${!videoOn ? 'danger' : ''}`}
+            onClick={toggleVideo}
+          >
+            {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
+          </button>
 
-          <div className="header-actions">
-            <button className="exit-btn" onClick={() => navigate("/")}>
-              <LogOut size={18} />
-              Sair
-            </button>
-          </div>
-        </header>
-
-        {/* Video Grid */}
-        <div
-          ref={videoContainerRef}
-          className={`video-grid count-${participantsCount}`}
-        >
-          {/* O carregamento aparece aqui se não estiver pronto */}
-          {!joined && (
-            <div className="room-loader">
-              <div className="spinner" />
-              <p>Preparando comunhão...</p>
-            </div>
-          )}
+          <button className="meet-btn exit" onClick={() => navigate("/")}>
+            <LogOut size={24} />
+          </button>
         </div>
 
-        {/* Floating Controls */}
-        <div className="control-bar">
-          <div className="controls-island">
-            <button
-              className={`control-btn ${!micOn ? "disabled" : ""}`}
-              onClick={toggleMic}
-              title={micOn ? "Mudar áudio" : "Ativar áudio"}
-            >
-              {micOn ? <Mic size={22} /> : <MicOff size={22} />}
-            </button>
-
-            <button
-              className={`control-btn ${!videoOn ? "disabled" : ""}`}
-              onClick={toggleVideo}
-              title={videoOn ? "Desligar câmera" : "Ativar câmera"}
-            >
-              {videoOn ? <Video size={22} /> : <VideoOff size={22} />}
-            </button>
-
-            <button className="control-btn settings">
-              <Settings size={22} />
-            </button>
-
-            <div className="control-sep" />
-
-            <button className="control-btn hangup" onClick={() => navigate("/")}>
-              <LogOut size={22} />
-            </button>
-          </div>
+        {/* Right Side: Sidebar Toggles */}
+        <div className="controls-right">
+          <button className="meet-btn secondary" onClick={() => setShowSidebar(true)}>
+            <Users size={20} />
+            <span className="badge">{participantsCount}</span>
+          </button>
+          <button className="meet-btn secondary" onClick={copyLink}>
+            <Share2 size={20} />
+          </button>
         </div>
-      </main>
+      </div>
+
+      {/* ── SIDEBAR DRAWER (Overlay) ── */}
+      <AnimatePresence>
+        {showSidebar && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="meet-overlay"
+              onClick={() => setShowSidebar(false)}
+            />
+            <motion.aside
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="meet-sidebar"
+            >
+              <div className="sidebar-header">
+                <h2>Detalhes da reunião</h2>
+                <button onClick={() => setShowSidebar(false)}><X /></button>
+              </div>
+
+              <div className="sidebar-tabs">
+                <button className="tab active">Pessoas</button>
+                <button className="tab">Informações</button>
+              </div>
+
+              <div className="sidebar-content">
+                <div className="section-label">GERENCIAR REUNIÃO</div>
+                <button className="sidebar-action-btn" onClick={copyLink}>
+                  <Copy size={18} />
+                  {copied ? "Link Copiado!" : "Copiar informações de participação"}
+                </button>
+
+                <div className="section-label">PARTICIPANTES</div>
+                <div className="participant-list">
+                  <div className="participant-item">
+                    <div className="p-avatar">{userName[0]}</div>
+                    <div className="p-name">{userName} (Você)</div>
+                    <div className="p-icons">
+                      {micOn ? <Mic size={14} /> : <MicOff size={14} className="text-red-500" />}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
 
       <style>{`
-        :root {
-          --bg-dark: #05060a;
-          --bg-surface: #0d0e14;
-          --sidebar-bg: #090a10;
-          --accent: #2563eb;
-          --accent-glow: rgba(37,99,235,0.4);
-          --text: #f0f4ff;
-          --text-muted: rgba(240,244,255,0.4);
-          --glass-border: rgba(255,255,255,0.06);
-          --radius: 20px;
+        .meet-container {
+            height: 100vh; width: 100vw;
+            background: #202124;
+            color: white;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            position: relative;
         }
 
-        .room-container {
-          height: 100vh;
-          width: 100vw;
-          background: var(--bg-dark);
-          color: var(--text);
-          display: flex;
-          overflow: hidden;
-          font-family: 'Outfit', sans-serif;
+        /* TOP BAR */
+        .meet-top-bar {
+            position: absolute; top: 0; left: 0; padding: 1rem 1.5rem;
+            z-index: 10;
+        }
+        .meet-room-info {
+            display: flex; align-items: center; gap: 0.75rem;
+            font-weight: 500; font-size: 0.9rem;
+            background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-radius: 8px;
+        }
+        .divider { opacity: 0.3; }
+
+        /* MAIN */
+        .meet-main { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .meet-grid {
+            width: 100%; height: 100%;
+            display: grid; gap: 0.75rem;
+            justify-content: center; align-content: center;
+        }
+        .meet-grid.count-1 { grid-template-columns: minmax(200px, 90%); max-height: 80vh; }
+        .meet-grid.count-2 { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 600px) {
+            .meet-grid.count-2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
         }
 
-        /* ── SIDEBAR ── */
-        .sidebar {
-          width: 320px;
-          background: var(--sidebar-bg);
-          border-right: 1px solid var(--glass-border);
-          display: flex;
-          flex-direction: column;
-          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        .participant-card {
+            width: 100%; aspect-ratio: 16/9; background: #3c4043; border-radius: 12px; overflow: hidden;
+            position: relative; border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.3s;
         }
-        .sidebar.closed { width: 0; opacity: 0; pointer-events: none; }
-
-        .sidebar-header { padding: 2rem 1.5rem; }
-        .logo-wrap { display: flex; align-items: center; gap: 0.75rem; font-weight: 800; font-size: 1.25rem; }
-        .logo-icon { color: var(--accent); }
-
-        .sidebar-content { flex: 1; padding: 0 1.5rem; display: flex; flex-direction: column; gap: 2rem; }
-        
-        .room-info-card {
-          background: rgba(255,255,255,0.03);
-          padding: 1.5rem;
-          border-radius: 18px;
-          border: 1px solid var(--glass-border);
+        @media (max-width: 600px) {
+            .participant-card { aspect-ratio: 1/1.2; }
         }
-        .room-info-card .label { font-size: 0.65rem; color: var(--text-muted); letter-spacing: 0.2em; margin-bottom: 0.5rem; }
-        .room-info-card h3 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--text); }
-        .status-badge { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.7rem; font-weight: 700; color: var(--accent); }
-        .pulse-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 10px var(--accent); animation: pulse 2s infinite; }
-
-        .sidebar-nav { display: flex; flex-direction: column; gap: 0.5rem; }
-        .nav-item { 
-          display: flex; align-items: center; gap: 1rem; padding: 1rem; 
-          border-radius: 12px; transition: all 0.2s; cursor: pointer; color: var(--text-muted); font-size: 0.9rem;
-        }
-        .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
-        .nav-item.active { background: rgba(37,99,235,0.1); color: var(--accent); font-weight: 600; }
-
-        .warning-box {
-          background: rgba(14,165,233,0.05);
-          padding: 1rem;
-          border-radius: 12px;
-          border-left: 3px solid var(--accent);
-          display: flex; gap: 0.75rem; font-size: 0.75rem; line-height: 1.5; color: rgba(240,244,255,0.6);
-        }
-
-        .sidebar-footer { padding: 2rem 1.5rem; border-top: 1px solid var(--glass-border); }
-        .user-profile { display: flex; align-items: center; gap: 1rem; }
-        .avatar { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #1d4ed8, #2563eb); display: flex; align-items: center; justify-content: center; font-weight: 800; }
-        .user-text .u-name { font-size: 0.9rem; font-weight: 600; }
-        .user-text .u-status { font-size: 0.7rem; color: var(--text-muted); }
-
-        /* ── MAIN AREA ── */
-        .main-viewport { flex: 1; display: flex; flex-direction: column; position: relative; }
-
-        .room-header { 
-          padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; 
-          background: rgba(5,6,10,0.5); backdrop-filter: blur(10px);
-        }
-        .sidebar-toggle { width: 32px; height: 32px; background: none; border: none; cursor: pointer; display: flex; flex-direction: column; gap: 6px; justify-content: center; }
-        .toggle-line { width: 24px; height: 2px; background: var(--text); border-radius: 2px; transition: 0.3s; }
-
-        .header-room-title { font-weight: 300; font-size: 0.9rem; letter-spacing: 0.05em; opacity: 0.6; }
-
-        .exit-btn {
-          background: rgba(239,68,68,0.1); color: #f87171; border: 1px solid rgba(239,68,68,0.2); 
-          padding: 0.6rem 1.25rem; border-radius: 10px; font-size: 0.8rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; transition: 0.2s;
-        }
-        .exit-btn:hover { background: #ef4444; color: #fff; }
-
-        /* VIDEO GRID */
-        .video-grid { flex: 1; padding: 1.5rem; display: grid; gap: 1rem; align-content: center; justify-content: center; overflow-y: auto; }
-        .video-grid.count-1 { grid-template-columns: minmax(300px, 900px); grid-template-rows: auto; }
-        .video-grid.count-2 { grid-template-columns: 1fr 1fr; }
-        .video-grid.count-3, .video-grid.count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
-
-        .participant-card { 
-          width: 100%; aspect-ratio: 16/9; background: #000; border-radius: var(--radius); overflow: hidden; position: relative; 
-          border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-        }
-        .participant-card.local { border-color: var(--accent-glow); outline: 2px solid var(--accent-glow); }
-        .participant-label { 
-          position: absolute; bottom: 1rem; left: 1rem; padding: 0.4rem 0.8rem; border-radius: 8px; 
-          background: rgba(0,0,0,0.5); backdrop-filter: blur(10px); color: #fff; font-size: 0.75rem; font-weight: 600; z-index: 5;
+        .participant-label {
+            position: absolute; bottom: 0.75rem; left: 0.75rem;
+            background: rgba(0,0,0,0.5); padding: 0.25rem 0.75rem; border-radius: 4px;
+            font-size: 0.75rem; font-weight: 500; z-index: 2;
         }
         video { object-fit: cover !important; }
 
-        .room-loader { display: flex; flex-direction: column; align-items: center; gap: 1rem; opacity: 0.5; }
-        .spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--accent); border-radius: 50%; animation: pulse 1s linear infinite; }
+        /* LOADER */
+        .meet-loader { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+        .loader-spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #8ab4f8; border-radius: 50%; animation: spin 1s linear infinite; }
 
-        /* CONTROLS */
-        .control-bar { position: absolute; bottom: 2rem; left: 0; right: 0; display: flex; justify-content: center; pointer-events: none; }
-        .controls-island { 
-          pointer-events: auto; display: flex; gap: 1rem; padding: 0.75rem 2rem; 
-          background: rgba(9,10,16,0.5); backdrop-filter: blur(25px); border-radius: 24px; border: 1px solid var(--glass-border); box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        /* BOTTOM BAR */
+        .meet-bottom-bar {
+            height: 80px; padding: 0 1.5rem;
+            display: flex; align-items: center; justify-content: space-between;
+            background: #202124; z-index: 20;
+        }
+        .controls-center { display: flex; gap: 0.75rem; align-items: center; }
+        .meet-btn {
+            width: 48px; height: 48px; border-radius: 50%; border: none;
+            background: #3c4043; color: white; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s;
+        }
+        .meet-btn:hover { background: #4a4e51; }
+        .meet-btn.danger { background: #ea4335; }
+        .meet-btn.danger:hover { background: #d93025; }
+        .meet-btn.exit { background: #ea4335; border-radius: 24px; width: 64px; }
+        .meet-btn.secondary { width: auto; border-radius: 24px; padding: 0 1rem; gap: 0.5rem; background: transparent; }
+        .meet-btn.secondary:hover { background: rgba(255,255,255,0.05); }
+        .badge { background: #8ab4f8; color: #202124; font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 10px; }
+
+        /* SIDEBAR DRAWER */
+        .meet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; }
+        .meet-sidebar {
+            position: fixed; top: 0; right: 0; width: 360px; height: 100%;
+            background: white; color: #202124; z-index: 101;
+            display: flex; flex-direction: column;
+        }
+        @media (max-width: 400px) { .meet-sidebar { width: 100%; } }
+
+        .sidebar-header { padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e8eaed; }
+        .sidebar-header h2 { font-size: 1.1rem; font-weight: 500; }
+        .sidebar-header button { background: none; border: none; cursor: pointer; color: #5f6368; }
+
+        .sidebar-tabs { display: flex; border-bottom: 1px solid #e8eaed; }
+        .tab { flex: 1; padding: 1rem; border: none; background: none; font-weight: 500; color: #5f6368; cursor: pointer; }
+        .tab.active { color: #1a73e8; border-bottom: 2px solid #1a73e8; }
+
+        .sidebar-content { padding: 1.5rem; flex: 1; overflow-y: auto; }
+        .section-label { font-size: 0.7rem; font-weight: 600; color: #5f6368; letter-spacing: 0.05em; margin: 1.5rem 0 0.75rem; }
+        .sidebar-action-btn {
+            width: 100%; padding: 0.75rem 1rem; border: 1px solid #dadce0; border-radius: 8px;
+            display: flex; align-items: center; gap: 1rem; color: #1a73e8; font-weight: 500;
+            background: white; cursor: pointer; text-align: left;
         }
 
-        .control-btn {
-          width: 52px; height: 52px; border-radius: 50%; border: none; background: rgba(255,255,255,0.05); color: var(--text);
-          display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
-        }
-        .control-btn:hover { background: rgba(255,255,255,0.15); transform: translateY(-3px); }
-        .control-btn.disabled { background: #ef4444; color: #fff; }
-        .control-btn.hangup { background: #ef4444; color: #fff; }
-        .control-btn.hangup:hover { transform: scale(1.1); box-shadow: 0 0 25px rgba(239,68,68,0.5); }
+        .participant-item { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+        .p-avatar { width: 32px; height: 32px; border-radius: 50%; background: #1a73e8; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.8rem; }
+        .p-name { flex: 1; font-size: 0.9rem; }
+        .p-icons { color: #5f6368; }
 
-        .control-sep { width: 1px; height: 32px; background: var(--glass-border); align-self: center; margin: 0 0.5rem; }
+        .desktop-only { display: flex; }
+        @media (max-width: 800px) { .desktop-only { display: none; } }
 
-        @keyframes pulse { 0% { opacity: 0.4; transform: scale(0.95); } 50% { opacity: 1; transform: scale(1); } 100% { opacity: 0.4; transform: scale(0.95); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );
