@@ -5,6 +5,8 @@ import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "motion/react";
 import AgoraRTC from "agora-rtc-sdk-ng";
 
+import { AGORA_APP_ID } from "../config";
+
 export default function Room() {
   const { roomName } = useParams();
   const [searchParams] = useSearchParams();
