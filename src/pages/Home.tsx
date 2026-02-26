@@ -7,58 +7,49 @@ import ThemeToggle from "../components/ThemeToggle";
 import { useTheme } from "../context/ThemeContext";
 
 function getUserId() {
-  let userId = localStorage.getItem('dmeet_userId');
+  let userId = localStorage.getItem("dmeet_userId");
   if (!userId) {
     userId = crypto.randomUUID();
-    localStorage.setItem('dmeet_userId', userId);
+    localStorage.setItem("dmeet_userId", userId);
   }
   return userId;
 }
 
 function getLiderId(): string {
-  let liderId = localStorage.getItem('dmeet_liderId');
+  let liderId = localStorage.getItem("dmeet_liderId");
   if (!liderId) {
-    liderId = 'lider_' + Date.now() + '_' + crypto.randomUUID().slice(0, 8);
-    localStorage.setItem('dmeet_liderId', liderId);
+    liderId = "lider_" + Date.now() + "_" + crypto.randomUUID().slice(0, 8);
+    localStorage.setItem("dmeet_liderId", liderId);
   }
   return liderId;
 }
 
-function carregarMeuNome() {
-  const userId = localStorage.getItem('dmeet_userId');
-  if (!userId) return '';
-  return localStorage.getItem('dmeet_name_' + userId) || '';
-}
-
 function salvarNome(nome: string) {
   const userId = getUserId();
-  localStorage.setItem('dmeet_name_' + userId, nome);
+  localStorage.setItem("dmeet_name_" + userId, nome);
 }
 
 export default function Home() {
   const { theme } = useTheme();
   const [searchParams] = useSearchParams();
-
-  const roomIdDaUrl = searchParams.get("roomId") || (
-    window.location.pathname.startsWith('/room/')
-      ? window.location.pathname.split('/room/')[1]
-      : ''
-  );
-
-  const [userName, setUserName] = useState<string>(carregarMeuNome());
-  const [roomUrl, setRoomUrl] = useState(roomIdDaUrl);
-  const [isLeader, setIsLeader] = useState(false);
-  const [roomPassword, setRoomPassword] = useState("");
   const navigate = useNavigate();
   const isDark = theme === "dark";
 
-  // Se entrou com link de convite, forçamos o nome vazio para preenchimento.
-  React.useEffect(() => {
-    if (roomIdDaUrl) {
-      setUserName("");
-      setRoomUrl(window.location.origin + '/room/' + roomIdDaUrl);
-    }
-  }, [roomIdDaUrl]);
+  // roomId vem sempre via ?roomId= (colocado pelo RoomGuard do App.tsx)
+  const roomIdDaUrl = searchParams.get("roomId") || "";
+
+  // Se veio de convite, começa com nome vazio. Se não, carrega nome salvo.
+  const nomeSalvo = (() => {
+    if (roomIdDaUrl) return ""; // convite = sempre vazio
+    const userId = localStorage.getItem("dmeet_userId");
+    if (!userId) return "";
+    return localStorage.getItem("dmeet_name_" + userId) || "";
+  })();
+
+  const [userName, setUserName] = useState<string>(nomeSalvo);
+  const [roomUrl, setRoomUrl] = useState("");
+  const [isLeader, setIsLeader] = useState(false);
+  const [roomPassword, setRoomPassword] = useState("");
 
   const gerarRoomIdLider = (liderId: string) => {
     const agora = new Date();
@@ -71,57 +62,59 @@ export default function Home() {
     return `devocional-${data}-${hora}-${rand}-${sufixoLider}`;
   };
 
-  const saveUser = (name: string) => {
-    setUserName(name);
-    salvarNome(name);
-  };
-
+  // Líder cria sala nova
   const createRoom = () => {
-    if (!userName.trim()) return; // Required
-    saveUser(userName);
+    if (!userName.trim()) return;
+    salvarNome(userName);
+
+    const liderId = getLiderId();
+    const novoRoomId = gerarRoomIdLider(liderId);
+    localStorage.setItem("dmeet_salaAtiva_" + liderId, novoRoomId);
+
     const params = new URLSearchParams();
-    params.set("nome", userName); // Attach explicitly
+    params.set("nome", userName);
+    params.set("role", "host");
+    if (roomPassword) params.set("pwd", roomPassword);
 
-    // Se for líder, cria sala única.
-    if (isLeader) {
-      const liderId = getLiderId();
-      const novoRoomId = gerarRoomIdLider(liderId);
-
-      localStorage.setItem('dmeet_salaAtiva_' + liderId, novoRoomId);
-      localStorage.setItem('dmeet_nome_' + liderId, userName);
-
-      params.set("role", "host");
-      if (roomPassword) params.set("pwd", roomPassword);
-
-      const query = params.toString() ? `?${params.toString()}` : "";
-      navigate(`/room/${novoRoomId}${query}`);
-      return;
-    }
-
-    // Se NÃO for líder, entra mas NÃO cria (se chamou create sem URL preenchida).
-    // Na real a UI deve impedir isso pelo novo layout, mas garantimos em lógica.
-    navigate("/");
+    navigate(`/room/${novoRoomId}?${params.toString()}`);
   };
 
-  const joinRoom = (e: React.FormEvent) => {
+  // Participante entra via link de convite (roomIdDaUrl já preenchido)
+  const joinRoomByInvite = () => {
+    if (!userName.trim() || !roomIdDaUrl) return;
+    salvarNome(userName);
+
+    const params = new URLSearchParams();
+    params.set("nome", userName);
+    params.set("role", "audience");
+
+    navigate(`/room/${roomIdDaUrl}?${params.toString()}`);
+  };
+
+  // Participante cola link manualmente
+  const joinRoomByLink = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userName.trim()) return; // Required
-    saveUser(userName);
+    if (!userName.trim() || !roomUrl.trim()) return;
+    salvarNome(userName);
 
-    if (roomUrl) {
-      let roomId = roomUrl.trim();
-      if (roomId.includes("/room/")) {
-        roomId = roomId.split("/room/")[1].split("?")[0];
-      } else if (roomId.includes("/")) {
-        roomId = roomId.split("/").pop() || roomId;
-      }
-      roomId = roomId.split("?")[0]; // remove query params se houver
-
-      if (roomId) navigate(`/room/${roomId}?nome=${encodeURIComponent(userName)}&role=audience`);
+    let roomId = roomUrl.trim();
+    // Extrai só o roomId de qualquer formato de URL
+    if (roomId.includes("/room/")) {
+      roomId = roomId.split("/room/")[1].split("?")[0];
+    } else if (roomId.includes("/")) {
+      roomId = roomId.split("/").pop() || roomId;
     }
+    roomId = roomId.split("?")[0];
+
+    if (!roomId) return;
+
+    const params = new URLSearchParams();
+    params.set("nome", userName);
+    params.set("role", "audience");
+
+    navigate(`/room/${roomId}?${params.toString()}`);
   };
 
-  // ── 2 passos ──
   const steps = [
     { n: "1", label: "Digite seu nome" },
     { n: "2", label: "Permita câmera/mic" },
@@ -132,7 +125,6 @@ export default function Home() {
       className="min-h-screen flex flex-col items-center justify-center py-6 px-6 font-sans relative"
       style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}
     >
-      {/* Theme Toggle */}
       <div className="fixed top-6 right-6 z-50">
         <ThemeToggle />
       </div>
@@ -165,7 +157,7 @@ export default function Home() {
         transition={{ duration: 0.4 }}
         className="max-w-[480px] w-full space-y-5 relative z-10"
       >
-        {/* ── HEADER ── */}
+        {/* Header */}
         <div className="text-center space-y-3">
           <div className="flex justify-center">
             <motion.div
@@ -199,7 +191,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── 3 PASSOS ── */}
+        {/* Passos */}
         <div
           className="flex items-center justify-center gap-0 rounded-xl px-4 py-3"
           style={{
@@ -227,10 +219,10 @@ export default function Home() {
           ))}
         </div>
 
-        {/* ── VERSÍCULOS ── */}
+        {/* Versículos */}
         <DailyVerses />
 
-        {/* ── CARD PRINCIPAL ── */}
+        {/* Card principal */}
         <div
           className="p-6 rounded-2xl space-y-4"
           style={{
@@ -240,19 +232,18 @@ export default function Home() {
             backdropFilter: "blur(20px)",
           }}
         >
-          {/* Nome */}
-          {!roomIdDaUrl && (
-            <div className="text-center font-bold text-lg mb-2 text-white">
-              Bem-vindo Líder / Participante!
+          {/* Banner de convite */}
+          {roomIdDaUrl ? (
+            <div className="text-center font-semibold text-[13px] bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-300">
+              🙏 Você foi convidado para um devocional
+            </div>
+          ) : (
+            <div className="text-center font-bold text-lg mb-2" style={{ color: "var(--text-primary)" }}>
+              Bem-vindo ao DevocionalMeet!
             </div>
           )}
 
-          {roomIdDaUrl && (
-            <div className="text-center font-semibold text-[13px] bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-300 mb-2">
-              Você foi convidado para um devocional
-            </div>
-          )}
-
+          {/* Campo nome */}
           <div className="space-y-1.5">
             <label
               className="text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 ml-1"
@@ -263,18 +254,23 @@ export default function Home() {
             <input
               type="text"
               required
-              disabled={false} // sempre editável
+              autoFocus={!!roomIdDaUrl}
               placeholder="Como você quer aparecer na reunião"
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  roomIdDaUrl ? joinRoomByInvite() : (isLeader ? createRoom() : undefined);
+                }
+              }}
               className="w-full rounded-xl px-4 py-3 text-sm input-field"
             />
           </div>
 
-          {/* Toggle líder/moderador (Só visível se NÃO veio por link convite) */}
+          {/* Toggle líder — só aparece na home sem convite */}
           {!roomIdDaUrl && (
             <div
-              className="rounded-xl overflow-hidden toggle-lider-container"
+              className="rounded-xl overflow-hidden"
               style={{ border: "1px solid var(--border-card)" }}
             >
               <button
@@ -303,7 +299,6 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {/* Switch */}
                   <div
                     className="w-9 h-5 rounded-full relative transition-all duration-200"
                     style={{
@@ -328,7 +323,6 @@ export default function Home() {
                 </div>
               </button>
 
-              {/* Senha da sala (só visível se líder) */}
               <AnimatePresence>
                 {isLeader && (
                   <motion.div
@@ -355,9 +349,6 @@ export default function Home() {
                         onChange={(e) => setRoomPassword(e.target.value)}
                         className="w-full rounded-xl px-4 py-3 text-sm input-field"
                       />
-                      <p className="text-[9px] ml-1" style={{ color: "var(--text-muted)" }}>
-                        A senha será aplicada automaticamente ao criar a sala.
-                      </p>
                     </div>
                   </motion.div>
                 )}
@@ -367,61 +358,64 @@ export default function Home() {
 
           {/* Botões */}
           <div className="space-y-2">
-            {!roomIdDaUrl ? (
-              // CASO A: HOME ORGÂNICA
-              isLeader ? (
-                <button
-                  onClick={createRoom}
-                  className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Criar Sala de Devocional
-                </button>
-              ) : null
-            ) : (
-              // CASO B: VEIO DO CONVITE
+
+            {/* CASO A: Veio de convite */}
+            {roomIdDaUrl && (
               <button
-                onClick={joinRoom}
-                className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm"
+                onClick={joinRoomByInvite}
+                disabled={!userName.trim()}
+                className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm disabled:opacity-50"
               >
                 <ArrowRight className="w-4 h-4" />
                 Entrar no Devocional
               </button>
             )}
 
+            {/* CASO B: Líder criando sala */}
+            {!roomIdDaUrl && isLeader && (
+              <button
+                onClick={createRoom}
+                disabled={!userName.trim()}
+                className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" />
+                Criar Sala de Devocional
+              </button>
+            )}
+
+            {/* CASO C: Participante colando link */}
             {!roomIdDaUrl && !isLeader && (
               <>
-                {/* Divider */}
                 <div className="relative py-1">
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t" style={{ borderColor: "var(--border-card)" }} />
                   </div>
                   <div className="relative flex justify-center text-[9px] uppercase tracking-widest">
-                    <span className="px-2 font-black" style={{ background: "var(--bg-page)", color: "var(--text-muted)" }}>
-                      Ou entre com link
+                    <span
+                      className="px-2 font-black"
+                      style={{ background: "var(--bg-page)", color: "var(--text-muted)" }}
+                    >
+                      Entre com link de convite
                     </span>
                   </div>
                 </div>
 
-                <form onSubmit={joinRoom} className="flex gap-2 campo-link-convite">
+                <form onSubmit={joinRoomByLink} className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Link ou código da sala"
+                    placeholder="Cole o link ou código da sala"
                     value={roomUrl}
                     onChange={(e) => setRoomUrl(e.target.value)}
                     className="flex-1 rounded-xl px-4 py-3 text-sm input-field"
                   />
                   <button
                     type="submit"
-                    className="p-3 rounded-xl transition-all duration-200 active:scale-95 border"
-                    style={{ background: "var(--bg-card)", borderColor: "var(--border-input)", color: "#60a5fa" }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "#2563eb";
-                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.12)";
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-input)";
-                      (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-card)";
+                    disabled={!userName.trim() || !roomUrl.trim()}
+                    className="p-3 rounded-xl transition-all duration-200 active:scale-95 border disabled:opacity-40"
+                    style={{
+                      background: "var(--bg-card)",
+                      borderColor: "var(--border-input)",
+                      color: "#60a5fa",
                     }}
                   >
                     <ArrowRight className="w-5 h-5" />
