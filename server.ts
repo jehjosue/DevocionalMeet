@@ -3,7 +3,6 @@ import { createServer as createViteServer } from "vite";
 import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
-
 dotenv.config();
 
 async function startServer() {
@@ -11,26 +10,26 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const httpServer = http.createServer(app);
 
-  // Inicialização do Socket.io para Signaling WebRTC
   const io = new Server(httpServer, {
-    cors: { origin: "*" } // Ajuste o CORS conforme necessidade no ambiente produtivo
+    cors: { origin: "*" },
   });
 
   io.on("connection", (socket) => {
-    socket.on("join-room", (roomId, userId) => {
-      // Sai de qualquer sala anterior antes de entrar na nova
-      const salasAtuais = Array.from(socket.rooms).filter(r => r !== socket.id);
-      salasAtuais.forEach(salaAnterior => {
-        socket.leave(salaAnterior);
-        socket.to(salaAnterior).emit("user-disconnected", userId);
+    // join-room agora recebe o nome do participante também
+    socket.on("join-room", (roomId: string, userId: string, userName: string) => {
+      // Sai de salas anteriores para evitar mistura
+      const salasAnteriores = Array.from(socket.rooms).filter((r) => r !== socket.id);
+      salasAnteriores.forEach((sala) => {
+        socket.leave(sala);
+        socket.to(sala).emit("user-disconnected", userId);
       });
 
       socket.join(roomId);
-      // Avisa aos outros da sala que um novo usuário entrou
-      socket.to(roomId).emit("user-joined", userId);
+
+      // Avisa os outros com o nome de quem entrou
+      socket.to(roomId).emit("user-joined", userId, userName || "Participante");
 
       socket.on("offer", (payload) => {
-        // Envia a oferta para o destino específico ou transmite na sala
         io.to(payload.target).emit("offer", payload);
       });
 
@@ -39,7 +38,6 @@ async function startServer() {
       });
 
       socket.on("ice-candidate", (payload) => {
-        // Transmite o candidato ICE para a sala toda (exceto o rementente) ou alvo específico se payload.target
         if (payload.target) {
           io.to(payload.target).emit("ice-candidate", payload);
         } else {
@@ -48,7 +46,6 @@ async function startServer() {
       });
 
       socket.on("chat_message", (payload) => {
-        // Chat simples na mesma sala Socket.io
         io.to(roomId).emit("chat_message", payload);
       });
 
