@@ -38,21 +38,27 @@ function salvarNome(nome: string) {
 export default function Home() {
   const { theme } = useTheme();
   const [searchParams] = useSearchParams();
-  const roomUrlParam = searchParams.get("room") || "";
+
+  const roomIdDaUrl = searchParams.get("roomId") || (
+    window.location.pathname.startsWith('/room/')
+      ? window.location.pathname.split('/room/')[1]
+      : ''
+  );
 
   const [userName, setUserName] = useState<string>(carregarMeuNome());
-  const [roomUrl, setRoomUrl] = useState(roomUrlParam);
+  const [roomUrl, setRoomUrl] = useState(roomIdDaUrl);
   const [isLeader, setIsLeader] = useState(false);
   const [roomPassword, setRoomPassword] = useState("");
   const navigate = useNavigate();
   const isDark = theme === "dark";
 
-  // Se entrou com link de convite (?room=...), forçamos o nome vazio para preenchimento.
+  // Se entrou com link de convite, forçamos o nome vazio para preenchimento.
   React.useEffect(() => {
-    if (roomUrlParam) {
+    if (roomIdDaUrl) {
       setUserName("");
+      setRoomUrl(window.location.origin + '/room/' + roomIdDaUrl);
     }
-  }, [roomUrlParam]);
+  }, [roomIdDaUrl]);
 
   const gerarRoomIdLider = (liderId: string) => {
     const agora = new Date();
@@ -88,7 +94,6 @@ export default function Home() {
       if (roomPassword) params.set("pwd", roomPassword);
 
       const query = params.toString() ? `?${params.toString()}` : "";
-      window.history.pushState({}, '', `/room/${novoRoomId}`);
       navigate(`/room/${novoRoomId}${query}`);
       return;
     }
@@ -104,16 +109,15 @@ export default function Home() {
     saveUser(userName);
 
     if (roomUrl) {
-      let name = roomUrl;
-      const params = new URLSearchParams();
-      params.set("nome", userName); // Attach explicitly
-
-      if (roomUrl.includes("/room/")) {
-        name = roomUrl.split("/room/")[1].split("?")[0];
-      } else if (roomUrl.includes("/")) {
-        name = roomUrl.split("/").pop() || roomUrl;
+      let roomId = roomUrl.trim();
+      if (roomId.includes("/room/")) {
+        roomId = roomId.split("/room/")[1].split("?")[0];
+      } else if (roomId.includes("/")) {
+        roomId = roomId.split("/").pop() || roomId;
       }
-      if (name) navigate(`/room/${name}?${params.toString()}&role=audience`);
+      roomId = roomId.split("?")[0]; // remove query params se houver
+
+      if (roomId) navigate(`/room/${roomId}?nome=${encodeURIComponent(userName)}&role=audience`);
     }
   };
 
@@ -237,13 +241,13 @@ export default function Home() {
           }}
         >
           {/* Nome */}
-          {!roomUrlParam && (
+          {!roomIdDaUrl && (
             <div className="text-center font-bold text-lg mb-2 text-white">
               Bem-vindo Líder / Participante!
             </div>
           )}
 
-          {roomUrlParam && (
+          {roomIdDaUrl && (
             <div className="text-center font-semibold text-[13px] bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-300 mb-2">
               Você foi convidado para um devocional
             </div>
@@ -268,7 +272,7 @@ export default function Home() {
           </div>
 
           {/* Toggle líder/moderador (Só visível se NÃO veio por link convite) */}
-          {!roomUrlParam && (
+          {!roomIdDaUrl && (
             <div
               className="rounded-xl overflow-hidden toggle-lider-container"
               style={{ border: "1px solid var(--border-card)" }}
@@ -363,7 +367,7 @@ export default function Home() {
 
           {/* Botões */}
           <div className="space-y-2">
-            {!roomUrlParam ? (
+            {!roomIdDaUrl ? (
               // CASO A: HOME ORGÂNICA
               isLeader ? (
                 <button
@@ -385,7 +389,7 @@ export default function Home() {
               </button>
             )}
 
-            {!roomUrlParam && !isLeader && (
+            {!roomIdDaUrl && !isLeader && (
               <>
                 {/* Divider */}
                 <div className="relative py-1">

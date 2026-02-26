@@ -72,7 +72,7 @@ export default function Room() {
 
     // Redireciona para home se acessar link direto de convite (sem ?nome=...)
     if (!searchParams.get("nome")) {
-      navigate(`/?room=${roomName}`);
+      navigate(`/?roomId=${roomName}`);
       return;
     }
 
