@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, Share2, MessageSquare, Menu, X, Settings } from "lucide-react";
+import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, Share2, MessageSquare, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "motion/react";
-
-declare const AgoraRTC: any;
+import AgoraRTC from "agora-rtc-sdk-ng";
 
 export default function Room() {
   const { roomName } = useParams();
@@ -46,19 +45,11 @@ export default function Room() {
       if (!appId || !roomName) return;
 
       try {
-        if (typeof AgoraRTC === "undefined") {
-          setTimeout(initAgora, 1000);
-          return;
-        }
-
-        // Usa modo 'rtc' - compatível com App IDs de Testing (sem token)
-        // A separação Host/Audience é feita SOMENTE na interface
+        // Agora vem do NPM, sem esperar carregamento de CDN
         clientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
         try {
-          console.log("Tentando Join com appID:", appId, "Room:", roomName);
           await clientRef.current.join(appId, roomName, null, null);
-          console.log("Join efetuado com sucesso!");
         } catch (joinErr: any) {
           console.error("Agora Join Error:", joinErr);
           if (joinErr?.code === "CAN_NOT_GET_GATEWAY_SERVER" || joinErr?.message?.toLowerCase().includes("token")) {
@@ -187,10 +178,12 @@ export default function Room() {
   const toggleScreenShare = async () => {
     if (!isScreenSharing) {
       try {
-        const screenTrack = await AgoraRTC.createScreenVideoTrack({
+        const rawScreenTrack = await AgoraRTC.createScreenVideoTrack({
           encoderConfig: "1080p_1",
           optimizationMode: "detail"
         });
+        // createScreenVideoTrack pode retornar track ou [track, audioTrack]
+        const screenTrack: any = Array.isArray(rawScreenTrack) ? rawScreenTrack[0] : rawScreenTrack;
 
         screenTrackRef.current = screenTrack;
 

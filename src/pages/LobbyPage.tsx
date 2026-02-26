@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Mic, MicOff, Video, VideoOff, Play, Shield, Settings, User } from "lucide-react";
-
-declare const AgoraRTC: any;
+import AgoraRTC from "agora-rtc-sdk-ng";
 
 export default function LobbyPage() {
     const { roomName } = useParams();
@@ -26,12 +25,6 @@ export default function LobbyPage() {
         const startPreview = async () => {
             // Todos os participantes vêm o preview da câmera
             try {
-                if (typeof AgoraRTC === "undefined") {
-                    console.log("Aguardando Agora SDK...");
-                    setTimeout(startPreview, 1000);
-                    return;
-                }
-
                 const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
                 localTracksRef.current = [audioTrack, videoTrack];
 
