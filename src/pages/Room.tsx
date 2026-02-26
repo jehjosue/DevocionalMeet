@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, MessageSquare, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import io, { Socket } from "socket.io-client";
+import { SOCKET_URL } from "../config";
 
 const ICE_SERVERS = {
   iceServers: [
@@ -136,7 +137,7 @@ export default function Room() {
       return;
     }
 
-    const socket = io();
+    const socket = io(SOCKET_URL);
     socketRef.current = socket;
 
     const failTimeout = setTimeout(() => {
@@ -479,8 +480,8 @@ export default function Room() {
                   <button
                     key={tab}
                     className={`flex-1 p-3 font-medium transition-colors ${activeTab === tab
-                        ? "text-blue-600 border-b-2 border-blue-600"
-                        : "text-gray-500"
+                      ? "text-blue-600 border-b-2 border-blue-600"
+                      : "text-gray-500"
                       }`}
                     onClick={() => setActiveTab(tab)}
                   >
@@ -556,8 +557,8 @@ export default function Room() {
                             </div>
                             <div
                               className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.sender === userName
-                                  ? "bg-blue-100 text-blue-900 rounded-tr-sm"
-                                  : "bg-gray-100 text-gray-800 rounded-tl-sm"
+                                ? "bg-blue-100 text-blue-900 rounded-tr-sm"
+                                : "bg-gray-100 text-gray-800 rounded-tl-sm"
                                 }`}
                             >
                               {msg.text}
