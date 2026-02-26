@@ -70,31 +70,28 @@ export default function Room() {
           return; // Para a execução se falhar
         }
 
-        // Só host cria e publica as faixas locais
-        if (isHost) {
-          console.log("Usuário é host. Solicitando câmera e microfone...");
-          const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(err => {
-            console.warn("Câmera/Mic recusados, você não conseguirá transmitir vídeo/áudio.", err);
-            return [null, null];
-          });
+        // Todos os participantes publicam câmera e microfone (estilo Google Meet)
+        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(err => {
+          console.warn("Câmera/Mic recusados", err);
+          return [null, null];
+        });
 
-          if (audioTrack || videoTrack) {
-            localTracksRef.current = [audioTrack, videoTrack];
+        if (audioTrack || videoTrack) {
+          localTracksRef.current = [audioTrack, videoTrack];
 
-            if (videoTrack) {
-              const localPlayer = document.createElement("div");
-              localPlayer.className = "participant-card local";
-              localPlayer.id = "local-player";
-              const label = document.createElement("div");
-              label.className = "participant-label";
-              label.innerText = `${userName} (Você)`;
-              localPlayer.appendChild(label);
-              videoContainerRef.current?.append(localPlayer);
-              videoTrack.play(localPlayer);
-            }
-
-            await clientRef.current.publish(localTracksRef.current.filter(t => t !== null));
+          if (videoTrack) {
+            const localPlayer = document.createElement("div");
+            localPlayer.className = "participant-card local";
+            localPlayer.id = "local-player";
+            const label = document.createElement("div");
+            label.className = "participant-label";
+            label.innerText = `${userName} (Você)`;
+            localPlayer.appendChild(label);
+            videoContainerRef.current?.append(localPlayer);
+            videoTrack.play(localPlayer);
           }
+
+          await clientRef.current.publish(localTracksRef.current.filter(t => t !== null));
         }
 
         clearTimeout(failTimeout);
@@ -324,35 +321,29 @@ export default function Room() {
           </div>
         </div>
 
-        {/* Center: Main Controls */}
+        {/* Center: Main Controls - para todos */}
         <div className="controls-center">
-          {isHost ? (
-            <>
-              <button
-                className={`meet-btn ${!micOn ? 'danger' : ''}`}
-                onClick={toggleMic}
-              >
-                {micOn ? <Mic size={24} /> : <MicOff size={24} />}
-              </button>
+          <button
+            className={`meet-btn ${!micOn ? 'danger' : ''}`}
+            onClick={toggleMic}
+          >
+            {micOn ? <Mic size={24} /> : <MicOff size={24} />}
+          </button>
 
-              <button
-                className={`meet-btn ${!videoOn ? 'danger' : ''}`}
-                onClick={toggleVideo}
-              >
-                {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
-              </button>
+          <button
+            className={`meet-btn ${!videoOn ? 'danger' : ''}`}
+            onClick={toggleVideo}
+          >
+            {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
+          </button>
 
-              <button
-                className={`meet-btn ${isScreenSharing ? 'active-share' : ''}`}
-                onClick={toggleScreenShare}
-                title="Compartilhar Tela"
-              >
-                <Share2 size={24} />
-              </button>
-            </>
-          ) : (
-            <div className="audience-badge">Modo de Exibição (Ouvinte)</div>
-          )}
+          <button
+            className={`meet-btn ${isScreenSharing ? 'active-share' : ''}`}
+            onClick={toggleScreenShare}
+            title="Compartilhar Tela"
+          >
+            <Share2 size={24} />
+          </button>
 
           <button className="meet-btn exit" onClick={() => navigate("/")}>
             <LogOut size={24} />

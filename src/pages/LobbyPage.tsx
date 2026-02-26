@@ -14,9 +14,9 @@ export default function LobbyPage() {
     const isHost = role === "host";
 
     const [userName, setUserName] = useState(localStorage.getItem("devocional_user_name") || "");
-    const [micOn, setMicOn] = useState(isHost); // Inicia ligado só para líder
-    const [videoOn, setVideoOn] = useState(isHost); // Inicia ligado só para líder
-    const [streamReady, setStreamReady] = useState(!isHost); // Se for audience, já tá pronto
+    const [micOn, setMicOn] = useState(true); // Mic ligado por padrão para todos
+    const [videoOn, setVideoOn] = useState(true); // Câmera ligada por padrão para todos
+    const [streamReady, setStreamReady] = useState(false); // Sempre aguarda carregamento
     const [error, setError] = useState<string | null>(null);
 
     const localVideoRef = useRef<HTMLDivElement>(null);
@@ -24,12 +24,7 @@ export default function LobbyPage() {
 
     useEffect(() => {
         const startPreview = async () => {
-            if (!isHost) {
-                // Espectador não precisa carregar câmera
-                setStreamReady(true);
-                return;
-            }
-
+            // Todos os participantes vêm o preview da câmera
             try {
                 if (typeof AgoraRTC === "undefined") {
                     console.log("Aguardando Agora SDK...");
@@ -46,7 +41,7 @@ export default function LobbyPage() {
                 setStreamReady(true);
             } catch (err: any) {
                 console.error("Preview error:", err);
-                setError("Câmera/Microfone não detectados ou permissão negada. Você entrará sem mídia.");
+                setError("Câmera/Microfone não detectados ou permissão negada.");
                 setMicOn(false);
                 setVideoOn(false);
                 setStreamReady(true); // Permite avançar mesmo sem mídia
@@ -93,51 +88,39 @@ export default function LobbyPage() {
                     <div className="preview-window">
                         <div ref={localVideoRef} className="video-surface" />
 
-                        {/* Se for Visitante, exibe mensagem clara */}
-                        {!isHost && (
-                            <div className="video-off-overlay">
-                                <div className="avatar-big">👋</div>
-                                <p style={{ textAlign: 'center', padding: '0 20px' }}>Você está entrando como <strong>Espectador</strong>. <br />Sua câmera e microfone ficarão desligados para economizar dados.</p>
-                            </div>
-                        )}
-
-                        {/* Se for Host e vídeo estiver desligado */}
-                        {isHost && !videoOn && (
+                        {/* Preview da câmera para todos */}
+                        {!videoOn && (
                             <div className="video-off-overlay">
                                 <div className="avatar-big">{userName[0]?.toUpperCase() || "?"}</div>
                                 <p>Câmera Desligada</p>
                             </div>
                         )}
 
-                        {error && isHost && (
+                        {error && (
                             <div className="error-overlay">
                                 <p>{error}</p>
                             </div>
                         )}
 
-                        {!streamReady && !error && videoOn && isHost && (
+                        {!streamReady && !error && (
                             <div className="loading-overlay">
                                 <div className="spinner" />
                             </div>
                         )}
 
                         <div className="preview-controls">
-                            {isHost && (
-                                <>
-                                    <button
-                                        className={`round-btn ${!micOn ? "off" : ""}`}
-                                        onClick={toggleMic}
-                                    >
-                                        {micOn ? <Mic size={20} /> : <MicOff size={20} />}
-                                    </button>
-                                    <button
-                                        className={`round-btn ${!videoOn ? "off" : ""}`}
-                                        onClick={toggleVideo}
-                                    >
-                                        {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
-                                    </button>
-                                </>
-                            )}
+                            <button
+                                className={`round-btn ${!micOn ? "off" : ""}`}
+                                onClick={toggleMic}
+                            >
+                                {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+                            </button>
+                            <button
+                                className={`round-btn ${!videoOn ? "off" : ""}`}
+                                onClick={toggleVideo}
+                            >
+                                {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
+                            </button>
                             <button className="round-btn settings">
                                 <Settings size={20} />
                             </button>
