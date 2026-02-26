@@ -18,6 +18,13 @@ async function startServer() {
 
   io.on("connection", (socket) => {
     socket.on("join-room", (roomId, userId) => {
+      // Sai de qualquer sala anterior antes de entrar na nova
+      const salasAtuais = Array.from(socket.rooms).filter(r => r !== socket.id);
+      salasAtuais.forEach(salaAnterior => {
+        socket.leave(salaAnterior);
+        socket.to(salaAnterior).emit("user-disconnected", userId);
+      });
+
       socket.join(roomId);
       // Avisa aos outros da sala que um novo usuário entrou
       socket.to(roomId).emit("user-joined", userId);

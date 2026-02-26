@@ -40,8 +40,41 @@ export default function Room() {
   // Para UI: rastrear participantes remotos e seus MediaStreams
   const [remoteStreams, setRemoteStreams] = useState<{ id: string, stream: MediaStream }[]>([]);
 
+  // --- Lógica de Paginação ---
+  const VIDEOS_POR_PAGINA = 9;
+  const [paginaAtual, setPaginaAtual] = useState(0);
+
+  const todosAsIds = ['local', ...remoteStreams.map(s => s.id)];
+  const totalParticipantes = todosAsIds.length;
+  const gridCount = totalParticipantes <= 9 ? String(totalParticipantes) : "many";
+  const totalPaginas = Math.ceil(totalParticipantes / VIDEOS_POR_PAGINA);
+
+  const proximaPagina = () => {
+    if (paginaAtual < totalPaginas - 1) setPaginaAtual(prev => prev + 1);
+  };
+  const paginaAnterior = () => {
+    if (paginaAtual > 0) setPaginaAtual(prev => prev - 1);
+  };
+
+  const inicioVisivel = paginaAtual * VIDEOS_POR_PAGINA;
+  const fimVisivel = inicioVisivel + VIDEOS_POR_PAGINA;
+  const isVisivel = (index: number) => index >= inicioVisivel && index < fimVisivel;
+
+  useEffect(() => {
+    if (paginaAtual >= totalPaginas && totalPaginas > 0) {
+      setPaginaAtual(totalPaginas - 1);
+    }
+  }, [totalPaginas, paginaAtual]);
+  // ---------------------------
+
   useEffect(() => {
     if (!roomName) return;
+
+    // Redireciona para home se acessar link direto de convite (sem ?nome=...)
+    if (!searchParams.get("nome")) {
+      navigate(`/?room=${roomName}`);
+      return;
+    }
 
     // Conectar ao Socket.io
     const socket = io(); // Conecta à origem atual (porta do servidor Node)
@@ -259,8 +292,22 @@ export default function Room() {
   return (
     // Aplicação da classe mobile 'sala-container' (Bug 3 Fix)
     <div className="sala-container">
+      {/* Contador de participantes dinâmico */}
+      <div className="contador-participantes">
+        👥 {totalParticipantes} participante{totalParticipantes > 1 ? 's' : ''}
+      </div>
+
+      {/* Paginação */}
+      {totalParticipantes > VIDEOS_POR_PAGINA && (
+        <div className="paginacao-bar">
+          <button onClick={paginaAnterior}>‹</button>
+          <span className="pag-info">Página {paginaAtual + 1} de {totalPaginas}</span>
+          <button onClick={proximaPagina}>›</button>
+        </div>
+      )}
+
       {/* ── TOP INFO ── */}
-      <div className="absolute top-0 left-0 p-4 z-10 w-full flex justify-between items-start pointer-events-none">
+      <div className="absolute top-0 right-0 p-4 z-10 flex justify-end items-start pointer-events-none">
         <div className="flex items-center gap-3 font-medium text-sm bg-black/40 px-4 py-2 rounded-xl backdrop-blur-md pointer-events-auto">
           <span className="text-white">{roomName}</span>
           <span className="opacity-30 text-white">|</span>
@@ -269,7 +316,7 @@ export default function Room() {
       </div>
 
       {/* ── MAIN CONTENT (Videos Area) ── */}
-      <main className="videos-area">
+      <main className="videos-grid" data-count={gridCount}>
         {!joined && !connectionError && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-10 gap-4 bg-[var(--bg-page)]">
             <div className="w-10 h-10 border-4 border-white/10 border-t-blue-500 rounded-full animate-spin" />
@@ -289,14 +336,14 @@ export default function Room() {
         )}
 
         {/* Local Video */}
-        <div className="video-tile">
+        <div className="video-tile" style={{ display: isVisivel(0) ? 'block' : 'none' }}>
           <video ref={localVideoRef} autoPlay playsInline muted />
           <div className="tile-label">{userName} (Você) {isHost ? "👑" : ""} {!micOn && "🔇"}</div>
         </div>
 
         {/* Remote Videos */}
-        {remoteStreams.map((remote) => (
-          <div key={remote.id} className="video-tile">
+        {remoteStreams.map((remote, index) => (
+          <div key={remote.id} className="video-tile" style={{ display: isVisivel(index + 1) ? 'block' : 'none' }}>
             <video
               id={`video-${remote.id}`}
               autoPlay
@@ -379,11 +426,15 @@ export default function Room() {
               <div className="flex-1 overflow-y-auto p-4 flex flex-col">
                 {activeTab === "people" ? (
                   <>
-                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">GERENCIAR REUNIÃO</h3>
-                    <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-xl mb-6 hover:bg-gray-50 transition-colors" onClick={copyLink}>
-                      <span className="text-blue-600 font-medium">{copied ? "Link Copiado!" : "Copiar link de participação"}</span>
-                      <Copy size={18} className="text-blue-600" />
-                    </button>
+                    {isHost && (
+                      <>
+                        <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">GERENCIAR REUNIÃO</h3>
+                        <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-xl mb-6 hover:bg-gray-50 transition-colors" onClick={copyLink}>
+                          <span className="text-blue-600 font-medium">{copied ? "Link Copiado!" : "Copiar link de participação"}</span>
+                          <Copy size={18} className="text-blue-600" />
+                        </button>
+                      </>
+                    )}
 
                     <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">PARTICIPANTES ({remoteStreams.length + 1})</h3>
                     <div className="flex flex-col gap-3">

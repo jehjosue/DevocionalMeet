@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { BookOpen, Plus, ArrowRight, Lock, User, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import DailyVerses from "../components/DailyVerses";
@@ -9,10 +9,19 @@ import { useTheme } from "../context/ThemeContext";
 function getUserId() {
   let userId = localStorage.getItem('dmeet_userId');
   if (!userId) {
-    userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    userId = crypto.randomUUID();
     localStorage.setItem('dmeet_userId', userId);
   }
   return userId;
+}
+
+function getLiderId(): string {
+  let liderId = localStorage.getItem('dmeet_liderId');
+  if (!liderId) {
+    liderId = 'lider_' + Date.now() + '_' + crypto.randomUUID().slice(0, 8);
+    localStorage.setItem('dmeet_liderId', liderId);
+  }
+  return liderId;
 }
 
 function carregarMeuNome() {
@@ -28,20 +37,32 @@ function salvarNome(nome: string) {
 
 export default function Home() {
   const { theme } = useTheme();
+  const [searchParams] = useSearchParams();
+  const roomUrlParam = searchParams.get("room") || "";
+
   const [userName, setUserName] = useState<string>(carregarMeuNome());
-  const [roomUrl, setRoomUrl] = useState("");
+  const [roomUrl, setRoomUrl] = useState(roomUrlParam);
   const [isLeader, setIsLeader] = useState(false);
   const [roomPassword, setRoomPassword] = useState("");
   const navigate = useNavigate();
   const isDark = theme === "dark";
 
-  const generateRoomName = () => {
-    const now = new Date();
-    const datePart = now.toISOString().split("T")[0].replace(/-/g, "");
-    const timePart =
-      now.getHours().toString().padStart(2, "0") +
-      now.getMinutes().toString().padStart(2, "0");
-    return `devocional-${datePart}-${timePart}-${Math.floor(Math.random() * 1000)}`;
+  // Se entrou com link de convite (?room=...), forçamos o nome vazio para preenchimento.
+  React.useEffect(() => {
+    if (roomUrlParam) {
+      setUserName("");
+    }
+  }, [roomUrlParam]);
+
+  const gerarRoomIdLider = (liderId: string) => {
+    const agora = new Date();
+    const data = agora.toISOString().slice(0, 10).replace(/-/g, "");
+    const hora =
+      agora.getHours().toString().padStart(2, "0") +
+      agora.getMinutes().toString().padStart(2, "0");
+    const rand = Math.floor(Math.random() * 900 + 100);
+    const sufixoLider = liderId.slice(-6);
+    return `devocional-${data}-${hora}-${rand}-${sufixoLider}`;
   };
 
   const saveUser = (name: string) => {
@@ -50,28 +71,49 @@ export default function Home() {
   };
 
   const createRoom = () => {
-    const name = generateRoomName();
+    if (!userName.trim()) return; // Required
+    saveUser(userName);
     const params = new URLSearchParams();
+    params.set("nome", userName); // Attach explicitly
+
+    // Se for líder, cria sala única.
     if (isLeader) {
+      const liderId = getLiderId();
+      const novoRoomId = gerarRoomIdLider(liderId);
+
+      localStorage.setItem('dmeet_salaAtiva_' + liderId, novoRoomId);
+      localStorage.setItem('dmeet_nome_' + liderId, userName);
+
       params.set("role", "host");
       if (roomPassword) params.set("pwd", roomPassword);
-    } else {
-      params.set("role", "audience");
+
+      const query = params.toString() ? `?${params.toString()}` : "";
+      window.history.pushState({}, '', `/room/${novoRoomId}`);
+      navigate(`/room/${novoRoomId}${query}`);
+      return;
     }
-    const query = params.toString() ? `?${params.toString()}` : "";
-    navigate(`/room/${name}${query}`);
+
+    // Se NÃO for líder, entra mas NÃO cria (se chamou create sem URL preenchida).
+    // Na real a UI deve impedir isso pelo novo layout, mas garantimos em lógica.
+    navigate("/");
   };
 
   const joinRoom = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userName.trim()) return; // Required
+    saveUser(userName);
+
     if (roomUrl) {
       let name = roomUrl;
+      const params = new URLSearchParams();
+      params.set("nome", userName); // Attach explicitly
+
       if (roomUrl.includes("/room/")) {
         name = roomUrl.split("/room/")[1].split("?")[0];
       } else if (roomUrl.includes("/")) {
         name = roomUrl.split("/").pop() || roomUrl;
       }
-      if (name) navigate(`/room/${name}?role=audience`);
+      if (name) navigate(`/room/${name}?${params.toString()}&role=audience`);
     }
   };
 
@@ -195,6 +237,18 @@ export default function Home() {
           }}
         >
           {/* Nome */}
+          {!roomUrlParam && (
+            <div className="text-center font-bold text-lg mb-2 text-white">
+              Bem-vindo Líder / Participante!
+            </div>
+          )}
+
+          {roomUrlParam && (
+            <div className="text-center font-semibold text-[13px] bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-300 mb-2">
+              Você foi convidado para um devocional
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <label
               className="text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 ml-1"
@@ -204,151 +258,173 @@ export default function Home() {
             </label>
             <input
               type="text"
+              required
+              disabled={false} // sempre editável
               placeholder="Como você quer aparecer na reunião"
               value={userName}
-              onChange={(e) => saveUser(e.target.value)}
+              onChange={(e) => setUserName(e.target.value)}
               className="w-full rounded-xl px-4 py-3 text-sm input-field"
             />
           </div>
 
-          {/* Toggle líder/moderador */}
-          <div
-            className="rounded-xl overflow-hidden"
-            style={{ border: "1px solid var(--border-card)" }}
-          >
-            <button
-              type="button"
-              onClick={() => setIsLeader(!isLeader)}
-              className="w-full flex items-center justify-between px-4 py-3 transition-colors duration-200"
-              style={{ background: isDark ? "rgba(0,0,0,0.2)" : "rgba(37,99,235,0.04)" }}
+          {/* Toggle líder/moderador (Só visível se NÃO veio por link convite) */}
+          {!roomUrlParam && (
+            <div
+              className="rounded-xl overflow-hidden toggle-lider-container"
+              style={{ border: "1px solid var(--border-card)" }}
             >
-              <div className="flex items-center gap-3">
-                <div
-                  className="p-1.5 rounded-lg transition-colors duration-200"
-                  style={{
-                    background: isLeader ? "rgba(37,99,235,0.15)" : "rgba(255,255,255,0.04)",
-                    color: isLeader ? "#60a5fa" : "var(--text-muted)",
-                  }}
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                </div>
-                <div className="text-left">
-                  <p className="text-[11px] font-bold" style={{ color: "var(--text-primary)" }}>
-                    Sou líder / moderador
-                  </p>
-                  <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>
-                    Ativa opções avançadas de sala
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Switch */}
-                <div
-                  className="w-9 h-5 rounded-full relative transition-all duration-200"
-                  style={{
-                    background: isLeader
-                      ? "linear-gradient(135deg, #0b3d91, #2563eb)"
-                      : isDark ? "rgba(255,255,255,0.10)" : "#d1d5db",
-                    boxShadow: isLeader ? "0 0 12px rgba(37,99,235,0.4)" : "none",
-                  }}
-                >
+              <button
+                type="button"
+                onClick={() => setIsLeader(!isLeader)}
+                className="w-full flex items-center justify-between px-4 py-3 transition-colors duration-200"
+                style={{ background: isDark ? "rgba(0,0,0,0.2)" : "rgba(37,99,235,0.04)" }}
+              >
+                <div className="flex items-center gap-3">
                   <div
-                    className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200"
-                    style={{ left: isLeader ? "17px" : "2px" }}
-                  />
-                </div>
-                <ChevronDown
-                  className="w-4 h-4 transition-transform duration-200"
-                  style={{
-                    color: "var(--text-muted)",
-                    transform: isLeader ? "rotate(180deg)" : "rotate(0deg)",
-                  }}
-                />
-              </div>
-            </button>
-
-            {/* Senha da sala (só visível se líder) */}
-            <AnimatePresence>
-              {isLeader && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.22 }}
-                  style={{ overflow: "hidden" }}
-                >
-                  <div
-                    className="px-4 pb-4 pt-1 space-y-1.5"
-                    style={{ borderTop: "1px solid var(--border-card)" }}
+                    className="p-1.5 rounded-lg transition-colors duration-200"
+                    style={{
+                      background: isLeader ? "rgba(37,99,235,0.15)" : "rgba(255,255,255,0.04)",
+                      color: isLeader ? "#60a5fa" : "var(--text-muted)",
+                    }}
                   >
-                    <label
-                      className="text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 ml-1"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      <Lock className="w-3 h-3" /> Senha da sala (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Deixe em branco para sala aberta"
-                      value={roomPassword}
-                      onChange={(e) => setRoomPassword(e.target.value)}
-                      className="w-full rounded-xl px-4 py-3 text-sm input-field"
-                    />
-                    <p className="text-[9px] ml-1" style={{ color: "var(--text-muted)" }}>
-                      A senha será aplicada automaticamente ao criar a sala.
+                    <Lock className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[11px] font-bold" style={{ color: "var(--text-primary)" }}>
+                      Sou líder / moderador
+                    </p>
+                    <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>
+                      Ativa opções avançadas de sala
                     </p>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Switch */}
+                  <div
+                    className="w-9 h-5 rounded-full relative transition-all duration-200"
+                    style={{
+                      background: isLeader
+                        ? "linear-gradient(135deg, #0b3d91, #2563eb)"
+                        : isDark ? "rgba(255,255,255,0.10)" : "#d1d5db",
+                      boxShadow: isLeader ? "0 0 12px rgba(37,99,235,0.4)" : "none",
+                    }}
+                  >
+                    <div
+                      className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200"
+                      style={{ left: isLeader ? "17px" : "2px" }}
+                    />
+                  </div>
+                  <ChevronDown
+                    className="w-4 h-4 transition-transform duration-200"
+                    style={{
+                      color: "var(--text-muted)",
+                      transform: isLeader ? "rotate(180deg)" : "rotate(0deg)",
+                    }}
+                  />
+                </div>
+              </button>
+
+              {/* Senha da sala (só visível se líder) */}
+              <AnimatePresence>
+                {isLeader && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22 }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    <div
+                      className="px-4 pb-4 pt-1 space-y-1.5"
+                      style={{ borderTop: "1px solid var(--border-card)" }}
+                    >
+                      <label
+                        className="text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 ml-1"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        <Lock className="w-3 h-3" /> Senha da sala (opcional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Deixe em branco para sala aberta"
+                        value={roomPassword}
+                        onChange={(e) => setRoomPassword(e.target.value)}
+                        className="w-full rounded-xl px-4 py-3 text-sm input-field"
+                      />
+                      <p className="text-[9px] ml-1" style={{ color: "var(--text-muted)" }}>
+                        A senha será aplicada automaticamente ao criar a sala.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
           {/* Botões */}
           <div className="space-y-2">
-            <button
-              onClick={createRoom}
-              className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm"
-            >
-              <Plus className="w-4 h-4" />
-              {isLeader ? "Criar Sala de Devocional" : "Entrar no Devocional"}
-            </button>
-
-            {/* Divider */}
-            <div className="relative py-1">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t" style={{ borderColor: "var(--border-card)" }} />
-              </div>
-              <div className="relative flex justify-center text-[9px] uppercase tracking-widest">
-                <span className="px-2 font-black" style={{ background: "var(--bg-page)", color: "var(--text-muted)" }}>
-                  Ou entre com link
-                </span>
-              </div>
-            </div>
-
-            <form onSubmit={joinRoom} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Link ou código da sala"
-                value={roomUrl}
-                onChange={(e) => setRoomUrl(e.target.value)}
-                className="flex-1 rounded-xl px-4 py-3 text-sm input-field"
-              />
+            {!roomUrlParam ? (
+              // CASO A: HOME ORGÂNICA
+              isLeader ? (
+                <button
+                  onClick={createRoom}
+                  className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Criar Sala de Devocional
+                </button>
+              ) : null
+            ) : (
+              // CASO B: VEIO DO CONVITE
               <button
-                type="submit"
-                className="p-3 rounded-xl transition-all duration-200 active:scale-95 border"
-                style={{ background: "var(--bg-card)", borderColor: "var(--border-input)", color: "#60a5fa" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "#2563eb";
-                  (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.12)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-input)";
-                  (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-card)";
-                }}
+                onClick={joinRoom}
+                className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm"
               >
-                <ArrowRight className="w-5 h-5" />
+                <ArrowRight className="w-4 h-4" />
+                Entrar no Devocional
               </button>
-            </form>
+            )}
+
+            {!roomUrlParam && !isLeader && (
+              <>
+                {/* Divider */}
+                <div className="relative py-1">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t" style={{ borderColor: "var(--border-card)" }} />
+                  </div>
+                  <div className="relative flex justify-center text-[9px] uppercase tracking-widest">
+                    <span className="px-2 font-black" style={{ background: "var(--bg-page)", color: "var(--text-muted)" }}>
+                      Ou entre com link
+                    </span>
+                  </div>
+                </div>
+
+                <form onSubmit={joinRoom} className="flex gap-2 campo-link-convite">
+                  <input
+                    type="text"
+                    placeholder="Link ou código da sala"
+                    value={roomUrl}
+                    onChange={(e) => setRoomUrl(e.target.value)}
+                    className="flex-1 rounded-xl px-4 py-3 text-sm input-field"
+                  />
+                  <button
+                    type="submit"
+                    className="p-3 rounded-xl transition-all duration-200 active:scale-95 border"
+                    style={{ background: "var(--bg-card)", borderColor: "var(--border-input)", color: "#60a5fa" }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "#2563eb";
+                      (e.currentTarget as HTMLButtonElement).style.background = "rgba(37,99,235,0.12)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--border-input)";
+                      (e.currentTarget as HTMLButtonElement).style.background = "var(--bg-card)";
+                    }}
+                  >
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </div>
       </motion.div>
