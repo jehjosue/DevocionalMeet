@@ -8,7 +8,7 @@ import { useTheme } from "../context/ThemeContext";
 
 export default function Home() {
   const { theme } = useTheme();
-  const [userName, setUserName] = useState(localStorage.getItem("jitsi_user_name") || "");
+  const [userName, setUserName] = useState(localStorage.getItem("devocional_user_name") || "");
   const [roomUrl, setRoomUrl] = useState("");
   const [isLeader, setIsLeader] = useState(false);
   const [roomPassword, setRoomPassword] = useState("");
@@ -26,7 +26,7 @@ export default function Home() {
 
   const saveUser = (name: string) => {
     setUserName(name);
-    localStorage.setItem("jitsi_user_name", name);
+    localStorage.setItem("devocional_user_name", name);
   };
 
   const createRoom = () => {
