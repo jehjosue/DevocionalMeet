@@ -1,11 +1,16 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, Share2, MessageSquare, X } from "lucide-react";
-import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "motion/react";
-import AgoraRTC from "agora-rtc-sdk-ng";
+import io, { Socket } from "socket.io-client";
 
-import { AGORA_APP_ID } from "../config";
+// Configurações ICE (Google STUN)
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+  ]
+};
 
 export default function Room() {
   const { roomName } = useParams();
@@ -16,232 +21,213 @@ export default function Room() {
   const [micOn, setMicOn] = useState(true);
   const [videoOn, setVideoOn] = useState(true);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [participantsCount, setParticipantsCount] = useState(1);
   const [copied, setCopied] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  const clientRef = useRef<any>(null);
-  const localTracksRef = useRef<any[]>([]);
-  const videoContainerRef = useRef<HTMLDivElement>(null);
-
-  const userName = searchParams.get("nome") || localStorage.getItem("devocional_user_name") || "Participante";
+  const userName = searchParams.get("nome") || localStorage.getItem("dmeet_name_" + localStorage.getItem("dmeet_userId")) || "Participante";
   const role = searchParams.get("role") || "audience";
   const isHost = role === "host";
-  const appId = (import.meta as any).env.VITE_AGORA_APP_ID;
 
   const [activeTab, setActiveTab] = useState<"people" | "chat">("people");
   const [messages, setMessages] = useState<{ id: string, sender: string, text: string, time: string }[]>([]);
   const [newMessage, setNewMessage] = useState("");
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const screenTrackRef = useRef<any>(null);
 
-  useEffect(() => {
-    // Timeout de segurança: se travar por 15s, mostra mensagem de erro
-    const failTimeout = setTimeout(() => {
-      if (!joined) {
-        setConnectionError("O servidor não respondeu. Verifique sua conexão ou recarregue a página.");
-      }
-    }, 15000);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const peersRef = useRef<{ [socketId: string]: RTCPeerConnection }>({});
 
-    const initAgora = async () => {
-      if (!appId || !roomName) return;
-
-      try {
-        // Agora vem do NPM, sem esperar carregamento de CDN
-        clientRef.current = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-
-        try {
-          await clientRef.current.join(appId, roomName, null, null);
-        } catch (joinErr: any) {
-          console.error("Agora Join Error:", joinErr);
-          if (joinErr?.code === "CAN_NOT_GET_GATEWAY_SERVER" || joinErr?.message?.toLowerCase().includes("token")) {
-            setConnectionError("Erro de Autenticação: Seu App ID precisa estar em modo 'Testing' no Agora Console.");
-          } else {
-            setConnectionError(`Falha ao entrar na sala. Verifique sua conexão.`);
-          }
-          clearTimeout(failTimeout);
-          return; // Para a execução se falhar
-        }
-
-        // Todos os participantes publicam câmera e microfone (estilo Google Meet)
-        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(err => {
-          console.warn("Câmera/Mic recusados", err);
-          return [null, null];
-        });
-
-        if (audioTrack || videoTrack) {
-          localTracksRef.current = [audioTrack, videoTrack];
-
-          if (videoTrack) {
-            const localPlayer = document.createElement("div");
-            localPlayer.className = "participant-card local";
-            localPlayer.id = "local-player";
-            const label = document.createElement("div");
-            label.className = "participant-label";
-            label.innerText = `${userName} (Você)`;
-            localPlayer.appendChild(label);
-            videoContainerRef.current?.append(localPlayer);
-            videoTrack.play(localPlayer);
-          }
-
-          await clientRef.current.publish(localTracksRef.current.filter(t => t !== null));
-        }
-
-        clearTimeout(failTimeout);
-        setJoined(true);
-
-        clientRef.current.on("user-published", async (user: any, mediaType: string) => {
-          await clientRef.current.subscribe(user, mediaType);
-          if (mediaType === "video") {
-            const remotePlayer = document.createElement("div");
-            remotePlayer.className = "participant-card";
-            remotePlayer.id = user.uid.toString();
-            const rLabel = document.createElement("div");
-            rLabel.className = "participant-label";
-            rLabel.innerText = "Participante";
-            remotePlayer.appendChild(rLabel);
-            videoContainerRef.current?.append(remotePlayer);
-            user.videoTrack.play(remotePlayer);
-            setParticipantsCount(prev => prev + 1);
-          }
-          if (mediaType === "audio") {
-            user.audioTrack.play();
-          }
-        });
-
-        clientRef.current.on("user-unpublished", (user: any) => {
-          const remotePlayer = document.getElementById(user.uid.toString());
-          remotePlayer?.remove();
-          setParticipantsCount(prev => Math.max(1, prev - 1));
-        });
-
-      } catch (err) {
-        console.error("Agora Error:", err);
-        clearTimeout(failTimeout);
-        setConnectionError("Erro inesperado ao conectar. Recarregue a página.");
-      }
-    };
-
-    initAgora();
-
-    return () => {
-      clearTimeout(failTimeout);
-      localTracksRef.current.forEach(t => {
-        if (t) { t.stop(); t.close(); }
-      });
-      clientRef.current?.leave();
-      if (videoContainerRef.current) videoContainerRef.current.innerHTML = "";
-    };
-  }, [roomName, appId, userName]);
-
-  const toggleMic = async () => {
-    if (localTracksRef.current[0]) {
-      await localTracksRef.current[0].setEnabled(!micOn);
-      setMicOn(!micOn);
-    }
-  };
-
-  const toggleVideo = async () => {
-    if (localTracksRef.current[1]) {
-      await localTracksRef.current[1].setEnabled(!videoOn);
-      setVideoOn(!videoOn);
-    }
-  };
+  // Para UI: rastrear participantes remotos e seus MediaStreams
+  const [remoteStreams, setRemoteStreams] = useState<{ id: string, stream: MediaStream }[]>([]);
 
   useEffect(() => {
     if (!roomName) return;
 
-    console.log("Iniciando conexão Supabase e Chat para sala:", roomName);
+    // Conectar ao Socket.io
+    const socket = io(); // Conecta à origem atual (porta do servidor Node)
+    socketRef.current = socket;
 
-    let channel: any;
-    try {
-      // Conecta no canal específico da sala para o chat
-      channel = supabase.channel(`room_${roomName}`);
+    // Timeout p/ fallback caso o getUserMedia demore ou falhe
+    const failTimeout = setTimeout(() => {
+      if (!joined && !connectionError) {
+        setConnectionError("Demora na conexão. Verifique permissões de câmera/microfone.");
+      }
+    }, 15000);
 
-      channel
-        .on('broadcast', { event: 'chat_message' }, (payload: any) => {
-          console.log("Recebida mensagem do Supabase:", payload);
-          setMessages((prev) => [...prev, payload.payload]);
-        })
-        .subscribe((status: string) => {
-          console.log("Status da Inscrição Supabase:", status);
+    const initWebRTC = async () => {
+      try {
+        // 1. CAPTURE O STREAM LOCAL ANTES (Bug 2 Fix)
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true
         });
-    } catch (err) {
-      console.error("Erro ao inicializar Supabase Channel:", err);
-    }
+        localStreamRef.current = stream;
+
+        // 2. EXIBA O STREAM LOCAL
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+
+        setJoined(true);
+        clearTimeout(failTimeout);
+
+        // Avisa o servidor que entramos na sala
+        socket.emit("join-room", roomName, socket.id);
+
+        // Quando um novo usuário entra, NÓS (que já estávamos) criamos a oferta para ele
+        socket.on("user-joined", async (userId: string) => {
+          if (userId === socket.id) return;
+          const peer = createPeer(userId, socket, stream);
+          peersRef.current[userId] = peer;
+
+          try {
+            const offer = await peer.createOffer();
+            await peer.setLocalDescription(offer);
+            socket.emit("offer", { target: userId, caller: socket.id, sdp: offer });
+          } catch (e) {
+            console.error("Erro ao criar offer:", e);
+          }
+        });
+
+        // Quando recebemos uma oferta de alguém (nós somos os novos)
+        socket.on("offer", async (payload: { target: string, caller: string, sdp: RTCSessionDescriptionInit }) => {
+          if (payload.target !== socket.id) return;
+
+          const peer = createPeer(payload.caller, socket, stream);
+          peersRef.current[payload.caller] = peer;
+
+          try {
+            await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            const answer = await peer.createAnswer();
+            await peer.setLocalDescription(answer);
+            socket.emit("answer", { target: payload.caller, caller: socket.id, sdp: answer });
+          } catch (e) {
+            console.error("Erro ao responder offer:", e);
+          }
+        });
+
+        // Quando recebemos uma resposta à nossa oferta
+        socket.on("answer", async (payload: { target: string, caller: string, sdp: RTCSessionDescriptionInit }) => {
+          if (payload.target !== socket.id) return;
+          const peer = peersRef.current[payload.caller];
+          if (peer) {
+            try {
+              await peer.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            } catch (e) {
+              console.error("Erro ao setar remote desc (answer)", e);
+            }
+          }
+        });
+
+        // Quando recebemos candidatos de rede
+        socket.on("ice-candidate", async (payload: { target?: string, sender: string, candidate: RTCIceCandidateInit }) => {
+          // Ignora se fomos nós que enviamos
+          if (payload.sender === socket.id) return;
+          const peer = peersRef.current[payload.sender];
+          if (peer && payload.candidate) {
+            try {
+              await peer.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            } catch (e) {
+              console.error("Erro ao adicionar ICE Candidate", e);
+            }
+          }
+        });
+
+        // Chat
+        socket.on("chat_message", (payload) => {
+          setMessages(prev => [...prev, payload]);
+        });
+
+        // Controle de desconexão
+        socket.on("user-disconnected", (userId: string) => {
+          if (peersRef.current[userId]) {
+            peersRef.current[userId].close();
+            delete peersRef.current[userId];
+          }
+          setRemoteStreams(prev => prev.filter(streamObj => streamObj.id !== userId));
+        });
+
+      } catch (err: any) {
+        console.error("Erro WebRTC:", err);
+        clearTimeout(failTimeout);
+        setConnectionError("Permissão de câmera/microfone negada ou dispositivo não encontrado.");
+      }
+    };
+
+    initWebRTC();
 
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
+      clearTimeout(failTimeout);
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+      Object.keys(peersRef.current).forEach(peerId => {
+        peersRef.current[peerId].close();
+      });
+      if (socket) {
+        socket.disconnect();
       }
     };
   }, [roomName]);
 
-  const toggleScreenShare = async () => {
-    if (!isScreenSharing) {
-      try {
-        const rawScreenTrack = await AgoraRTC.createScreenVideoTrack({
-          encoderConfig: "1080p_1",
-          optimizationMode: "detail"
+  // Função auxiliar para criar a conexão P2P (Bug 2 Fix)
+  const createPeer = (peerId: string, socket: Socket, stream: MediaStream) => {
+    // 3. CRIE O PEER CONNECTION
+    const peer = new RTCPeerConnection(ICE_SERVERS);
+
+    // 4. ADICIONE AS TRACKS LOCAIS (Correção fundamental do Áudio/Vídeo Mudo)
+    stream.getTracks().forEach(track => {
+      peer.addTrack(track, stream);
+    });
+
+    // 5. OUVIR AS TRACKS REMOTAS
+    peer.ontrack = (event) => {
+      if (event.streams && event.streams[0]) {
+        setRemoteStreams(prev => {
+          // Evita duplicar se a thread rodar duas vezes
+          if (prev.some(s => s.id === peerId)) return prev;
+          return [...prev, { id: peerId, stream: event.streams[0] }];
         });
-        // createScreenVideoTrack pode retornar track ou [track, audioTrack]
-        const screenTrack: any = Array.isArray(rawScreenTrack) ? rawScreenTrack[0] : rawScreenTrack;
-
-        screenTrackRef.current = screenTrack;
-
-        // Substitui a faixa de vídeo atual pela da tela
-        if (localTracksRef.current[1]) {
-          await clientRef.current.replaceTrack(localTracksRef.current[1], screenTrack);
-        } else {
-          // Se ele não tinha vídeo antes
-          await clientRef.current.publish(screenTrack);
-        }
-
-        // Toca a tela localmente
-        const localPlayer = document.getElementById("local-player");
-        if (localPlayer) {
-          screenTrack.play(localPlayer);
-        }
-
-        setIsScreenSharing(true);
-
-        // Se o usuário parar o compartilhamento pelo botão nativo do navegador
-        screenTrack.on("track-ended", async () => {
-          stopScreenShare();
-        });
-
-      } catch (err) {
-        console.error("Erro ao compartilhar tela:", err);
       }
-    } else {
-      stopScreenShare();
+    };
+
+    // 6. ENVIAR CANDIDATOS
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit("ice-candidate", {
+          target: peerId,
+          sender: socket.id,
+          candidate: event.candidate
+        });
+      }
+    };
+
+    return peer;
+  };
+
+  const toggleMic = () => {
+    if (localStreamRef.current) {
+      const audioTrack = localStreamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !micOn;
+        setMicOn(!micOn);
+      }
     }
   };
 
-  const stopScreenShare = async () => {
-    if (screenTrackRef.current) {
-      screenTrackRef.current.stop();
-      screenTrackRef.current.close();
-
-      // Restaura a câmera normal
-      if (localTracksRef.current[1]) {
-        await clientRef.current.replaceTrack(screenTrackRef.current, localTracksRef.current[1]);
-        const localPlayer = document.getElementById("local-player");
-        if (localPlayer) {
-          localTracksRef.current[1].play(localPlayer);
-        }
-      } else {
-        await clientRef.current.unpublish(screenTrackRef.current);
+  const toggleVideo = () => {
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoOn;
+        setVideoOn(!videoOn);
       }
-
-      screenTrackRef.current = null;
-      setIsScreenSharing(false);
     }
   };
 
-  const sendMessage = async (e: React.FormEvent) => {
+  const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !socketRef.current) return;
 
     const msg = {
       id: Math.random().toString(),
@@ -250,111 +236,89 @@ export default function Room() {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages(prev => [...prev, msg]);
+    socketRef.current.emit("chat_message", msg);
     setNewMessage("");
-
-    // Dispara via Supabase para todos na sala
-    if (roomName) {
-      await supabase.channel(`room_${roomName}`).send({
-        type: 'broadcast',
-        event: 'chat_message',
-        payload: msg
-      });
-    }
   };
 
   const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
+    // Geração limpa sem o nome na URL
+    const cleanUrl = window.location.origin + '/room/' + roomName;
+    navigator.clipboard.writeText(cleanUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="meet-container">
-      {/* ── TOP INFO (Google Meet style) ── */}
-      <div className="meet-top-bar">
-        <div className="meet-room-info">
-          <span className="room-code">{roomName}</span>
-          <span className="divider">|</span>
-          <span className="room-time">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+    // Aplicação da classe mobile 'sala-container' (Bug 3 Fix)
+    <div className="sala-container">
+      {/* ── TOP INFO ── */}
+      <div className="absolute top-0 left-0 p-4 z-10 w-full flex justify-between items-start pointer-events-none">
+        <div className="flex items-center gap-3 font-medium text-sm bg-black/40 px-4 py-2 rounded-xl backdrop-blur-md pointer-events-auto">
+          <span className="text-white">{roomName}</span>
+          <span className="opacity-30 text-white">|</span>
+          <span className="text-white opacity-80">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
       </div>
 
-      {/* ── MAIN CONTENT (Grid) ── */}
-      <main className="meet-main">
-        <div
-          ref={videoContainerRef}
-          className={`meet-grid count-${participantsCount}`}
-        />
-
+      {/* ── MAIN CONTENT (Videos Area) ── */}
+      <main className="videos-area">
         {!joined && !connectionError && (
-          <div className="meet-loader">
-            <div className="loader-spinner" />
-            <p>Conectando à reunião...</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-10 gap-4 bg-[var(--bg-page)]">
+            <div className="w-10 h-10 border-4 border-white/10 border-t-blue-500 rounded-full animate-spin" />
+            <p>Conectando dispositivos e acessando a sala...</p>
           </div>
         )}
 
         {connectionError && (
-          <div className="meet-error">
-            <Shield size={48} style={{ color: "#ef4444", marginBottom: "1rem" }} />
-            <h3>Falha na Conexão</h3>
-            <p>{connectionError}</p>
-            <button onClick={() => navigate("/")} className="error-back-btn">
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-50 bg-black/80 backdrop-blur-sm p-4 text-center">
+            <Shield size={48} className="text-red-500 mb-4" />
+            <h3 className="text-xl font-bold mb-2">Falha na Conexão</h3>
+            <p className="text-white/70 mb-6">{connectionError}</p>
+            <button onClick={() => navigate("/")} className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold transition-all">
               Voltar para o Início
             </button>
           </div>
         )}
+
+        {/* Local Video */}
+        <div className="video-tile">
+          <video ref={localVideoRef} autoPlay playsInline muted />
+          <div className="tile-label">{userName} (Você) {isHost ? "👑" : ""} {!micOn && "🔇"}</div>
+        </div>
+
+        {/* Remote Videos */}
+        {remoteStreams.map((remote) => (
+          <div key={remote.id} className="video-tile">
+            <RemoteVideo stream={remote.stream} />
+            <div className="tile-label">Participante</div>
+          </div>
+        ))}
       </main>
 
-      {/* ── BOTTOM CONTROLS (Google Meet style) ── */}
-      <div className="meet-bottom-bar">
-        {/* Left Side: Clock/Info hide on mobile or move to center */}
-        <div className="controls-left desktop-only">
-          <div className="meet-logo">
-            <Shield size={20} className="text-blue-500" />
-            <span>DevocionalMeet</span>
-          </div>
-        </div>
+      {/* ── BOTTOM CONTROLS (Mobile fix) ── */}
+      <div className="controles-bar">
+        <button
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${!micOn ? 'bg-red-500 hover:bg-red-600' : 'bg-[#3c4043] hover:bg-[#4a4e51]'} text-white`}
+          onClick={toggleMic}
+        >
+          {micOn ? <Mic size={24} /> : <MicOff size={24} />}
+        </button>
 
-        {/* Center: Main Controls - para todos */}
-        <div className="controls-center">
-          <button
-            className={`meet-btn ${!micOn ? 'danger' : ''}`}
-            onClick={toggleMic}
-          >
-            {micOn ? <Mic size={24} /> : <MicOff size={24} />}
-          </button>
+        <button
+          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${!videoOn ? 'bg-red-500 hover:bg-red-600' : 'bg-[#3c4043] hover:bg-[#4a4e51]'} text-white`}
+          onClick={toggleVideo}
+        >
+          {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
+        </button>
 
-          <button
-            className={`meet-btn ${!videoOn ? 'danger' : ''}`}
-            onClick={toggleVideo}
-          >
-            {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
-          </button>
+        <button className="w-16 h-12 rounded-3xl flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition-colors" onClick={() => navigate("/")}>
+          <LogOut size={22} />
+        </button>
 
-          <button
-            className={`meet-btn ${isScreenSharing ? 'active-share' : ''}`}
-            onClick={toggleScreenShare}
-            title="Compartilhar Tela"
-          >
-            <Share2 size={24} />
-          </button>
-
-          <button className="meet-btn exit" onClick={() => navigate("/")}>
-            <LogOut size={24} />
-          </button>
-        </div>
-
-        {/* Right Side: Sidebar Toggles */}
-        <div className="controls-right">
-          <button className="meet-btn secondary" onClick={() => setShowSidebar(true)}>
-            <Users size={20} />
-            <span className="badge">{participantsCount}</span>
-          </button>
-          <button className="meet-btn secondary" onClick={copyLink}>
-            <Share2 size={20} />
-          </button>
-        </div>
+        <button className="h-10 px-4 rounded-3xl flex items-center justify-center bg-transparent hover:bg-white/10 text-white transition-colors gap-2" onClick={() => setShowSidebar(true)}>
+          <Users size={20} />
+          <span className="bg-blue-300 text-blue-900 text-[10px] font-bold px-2 py-0.5 rounded-full">{remoteStreams.length + 1}</span>
+        </button>
       </div>
 
       {/* ── SIDEBAR DRAWER (Overlay) ── */}
@@ -365,7 +329,7 @@ export default function Room() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="meet-overlay"
+              className="fixed inset-0 bg-black/50 z-[100]"
               onClick={() => setShowSidebar(false)}
             />
             <motion.aside
@@ -373,76 +337,92 @@ export default function Room() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="meet-sidebar"
+              className="fixed top-0 right-0 w-full max-w-sm h-full bg-white text-gray-900 z-[101] flex flex-col"
             >
-              <div className="sidebar-header">
-                <h2>Detalhes da reunião</h2>
-                <button onClick={() => setShowSidebar(false)}><X /></button>
+              <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+                <h2 className="font-semibold text-lg">Detalhes da reunião</h2>
+                <button onClick={() => setShowSidebar(false)} className="text-gray-500 p-2"><X size={20} /></button>
               </div>
 
-              <div className="sidebar-tabs">
+              <div className="flex border-b border-gray-200">
                 <button
-                  className={`tab ${activeTab === 'people' ? 'active' : ''}`}
+                  className={`flex-1 p-3 font-medium transition-colors ${activeTab === 'people' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
                   onClick={() => setActiveTab("people")}
                 >
                   Pessoas
                 </button>
                 <button
-                  className={`tab ${activeTab === 'chat' ? 'active' : ''}`}
+                  className={`flex-1 p-3 font-medium transition-colors ${activeTab === 'chat' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}
                   onClick={() => setActiveTab("chat")}
                 >
                   Chat
                 </button>
               </div>
 
-              <div className="sidebar-content">
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col">
                 {activeTab === "people" ? (
                   <>
-                    <div className="section-label">GERENCIAR REUNIÃO</div>
-                    <button className="sidebar-action-btn" onClick={copyLink}>
-                      <Copy size={18} />
-                      {copied ? "Link Copiado!" : "Copiar informações de participação"}
+                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">GERENCIAR REUNIÃO</h3>
+                    <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-xl mb-6 hover:bg-gray-50 transition-colors" onClick={copyLink}>
+                      <span className="text-blue-600 font-medium">{copied ? "Link Copiado!" : "Copiar link de participação"}</span>
+                      <Copy size={18} className="text-blue-600" />
                     </button>
 
-                    <div className="section-label">PARTICIPANTES</div>
-                    <div className="participant-list">
-                      <div className="participant-item">
-                        <div className="p-avatar">{userName[0]?.toUpperCase() || "?"}</div>
-                        <div className="p-name">{userName} (Você) {isHost ? "👑" : "👀"}</div>
-                        <div className="p-icons">
-                          {isHost ? (micOn ? <Mic size={14} /> : <MicOff size={14} className="text-red-500" />) : <span className="text-xs">Ouvinte</span>}
+                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">PARTICIPANTES ({remoteStreams.length + 1})</h3>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">{userName[0]?.toUpperCase() || "?"}</div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{userName} (Você) {isHost && "👑"}</p>
+                        </div>
+                        <div className="text-gray-500">
+                          {micOn ? <Mic size={16} /> : <MicOff size={16} className="text-red-500" />}
                         </div>
                       </div>
+
+                      {remoteStreams.map((remote) => (
+                        <div key={remote.id} className="flex items-center gap-3 opacity-90">
+                          <div className="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold">P</div>
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">Participante</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </>
                 ) : (
-                  <div className="chat-container">
-                    <div className="chat-messages">
+                  <div className="flex-1 flex flex-col -m-4">
+                    <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3">
                       {messages.length === 0 ? (
-                        <div className="empty-chat">
-                          <MessageSquare size={32} style={{ opacity: 0.2, margin: "0 auto 10px" }} />
-                          <p>Nenhuma mensagem ainda.<br />Seja o primeiro a dizer olá!</p>
+                        <div className="m-auto text-center text-gray-400">
+                          <MessageSquare size={32} className="mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">Nenhuma mensagem ainda.</p>
                         </div>
                       ) : (
                         messages.map((msg) => (
-                          <div key={msg.id} className={`chat-msg ${msg.sender === userName ? 'mine' : ''}`}>
-                            <div className="msg-header">
-                              <strong>{msg.sender === userName ? "Você" : msg.sender}</strong>
-                              <span>{msg.time}</span>
+                          <div key={msg.id} className={`flex flex-col ${msg.sender === userName ? 'items-end' : 'items-start'}`}>
+                            <div className="flex gap-2 items-baseline text-xs text-gray-500 mb-1">
+                              <span className="font-semibold">{msg.sender === userName ? "Você" : msg.sender}</span>
+                              <span className="text-[10px]">{msg.time}</span>
                             </div>
-                            <div className="msg-bubble">{msg.text}</div>
+                            <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.sender === userName ? 'bg-blue-100 text-blue-900 rounded-tr-sm' : 'bg-gray-100 text-gray-800 rounded-tl-sm'}`}>
+                              {msg.text}
+                            </div>
                           </div>
                         ))
                       )}
                     </div>
-                    <form className="chat-input-area" onSubmit={sendMessage}>
+                    <form className="p-3 border-t border-gray-200 flex gap-2 bg-white" onSubmit={sendMessage}>
                       <input
                         type="text"
                         placeholder="Envie uma mensagem..."
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
+                        className="flex-1 bg-gray-100 border border-transparent focus:border-blue-500 px-4 py-2 rounded-full text-sm outline-none transition-colors"
                       />
-                      <button type="submit" disabled={!newMessage.trim()}>Enviar</button>
+                      <button type="submit" disabled={!newMessage.trim()} className="text-blue-600 font-semibold px-2 disabled:opacity-50">
+                        Enviar
+                      </button>
                     </form>
                   </div>
                 )}
@@ -451,139 +431,19 @@ export default function Room() {
           </>
         )}
       </AnimatePresence>
-
-      <style>{`
-        .meet-container {
-            height: 100vh; width: 100vw;
-            background: #202124;
-            color: white;
-            display: flex; flex-direction: column;
-            overflow: hidden;
-            font-family: 'Inter', sans-serif;
-            position: relative;
-        }
-
-        /* TOP BAR */
-        .meet-top-bar {
-            position: absolute; top: 0; left: 0; padding: 1rem 1.5rem;
-            z-index: 10;
-        }
-        .meet-room-info {
-            display: flex; align-items: center; gap: 0.75rem;
-            font-weight: 500; font-size: 0.9rem;
-            background: rgba(0,0,0,0.3); padding: 0.5rem 1rem; border-radius: 8px;
-        }
-        .divider { opacity: 0.3; }
-
-        /* MAIN */
-        .meet-main { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-        .meet-grid {
-            width: 100%; height: 100%;
-            display: grid; gap: 0.75rem;
-            justify-content: center; align-content: center;
-        }
-        .meet-grid.count-1 { grid-template-columns: minmax(200px, 90%); max-height: 80vh; }
-        .meet-grid.count-2 { grid-template-columns: 1fr 1fr; }
-        @media (max-width: 600px) {
-            .meet-grid.count-2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
-        }
-
-        .participant-card {
-            width: 100%; aspect-ratio: 16/9; background: #3c4043; border-radius: 12px; overflow: hidden;
-            position: relative; border: 1px solid rgba(255,255,255,0.05);
-            transition: all 0.3s;
-        }
-        @media (max-width: 600px) {
-            .participant-card { aspect-ratio: 1/1.2; }
-        }
-        .participant-label {
-            position: absolute; bottom: 0.75rem; left: 0.75rem;
-            background: rgba(0,0,0,0.5); padding: 0.25rem 0.75rem; border-radius: 4px;
-            font-size: 0.75rem; font-weight: 500; z-index: 2;
-        }
-        video { object-fit: cover !important; }
-
-        /* LOADER & ERROR */
-        .meet-loader, .meet-error { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; text-align: center; padding: 2rem; max-width: 500px; margin: 0 auto; z-index: 10; position: absolute; inset: 0; }
-        .meet-error { background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); border-radius: 24px; border: 1px solid rgba(239,68,68,0.3); position: relative; height: fit-content; margin-top: auto; margin-bottom: auto; }
-        .meet-error p { color: rgba(255,255,255,0.7); line-height: 1.5; font-size: 0.9rem; }
-        .error-back-btn { background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 12px; cursor: pointer; font-weight: 600; margin-top: 1rem; transition: 0.2s; }
-        .error-back-btn:hover { background: #1d4ed8; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(37,99,235,0.4); }
-        .loader-spinner { width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #8ab4f8; border-radius: 50%; animation: spin 1s linear infinite; }
-
-        /* BOTTOM BAR */
-        .meet-bottom-bar {
-            height: 80px; padding: 0 1.5rem;
-            display: flex; align-items: center; justify-content: space-between;
-            background: #202124; z-index: 20;
-        }
-        .controls-center { display: flex; gap: 0.75rem; align-items: center; }
-        .meet-btn {
-            width: 48px; height: 48px; border-radius: 50%; border: none;
-            background: #3c4043; color: white; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: 0.2s;
-        }
-        .meet-btn:hover { background: #4a4e51; }
-        .meet-btn.danger { background: #ea4335; }
-        .meet-btn.danger:hover { background: #d93025; }
-        .meet-btn.active-share { background: #8ab4f8; color: #202124; }
-        .meet-btn.exit { background: #ea4335; border-radius: 24px; width: 64px; }
-        .meet-btn.secondary { width: auto; border-radius: 24px; padding: 0 1rem; gap: 0.5rem; background: transparent; }
-        .meet-btn.secondary:hover { background: rgba(255,255,255,0.05); }
-        .badge { background: #8ab4f8; color: #202124; font-size: 0.65rem; font-weight: 800; padding: 2px 6px; border-radius: 10px; }
-
-        /* SIDEBAR DRAWER */
-        .meet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; }
-        .meet-sidebar {
-            position: fixed; top: 0; right: 0; width: 360px; height: 100%;
-            background: white; color: #202124; z-index: 101;
-            display: flex; flex-direction: column;
-        }
-        @media (max-width: 400px) { .meet-sidebar { width: 100%; } }
-
-        .sidebar-header { padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e8eaed; }
-        .sidebar-header h2 { font-size: 1.1rem; font-weight: 500; }
-        .sidebar-header button { background: none; border: none; cursor: pointer; color: #5f6368; }
-
-        .sidebar-tabs { display: flex; border-bottom: 1px solid #e8eaed; }
-        .tab { flex: 1; padding: 1rem; border: none; background: none; font-weight: 500; color: #5f6368; cursor: pointer; }
-        .tab.active { color: #1a73e8; border-bottom: 2px solid #1a73e8; }
-
-        .sidebar-content { padding: 1.5rem; flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-        .section-label { font-size: 0.7rem; font-weight: 600; color: #5f6368; letter-spacing: 0.05em; margin: 1.5rem 0 0.75rem; }
-        .sidebar-action-btn {
-            width: 100%; padding: 0.75rem 1rem; border: 1px solid #dadce0; border-radius: 8px;
-            display: flex; align-items: center; gap: 1rem; color: #1a73e8; font-weight: 500;
-            background: white; cursor: pointer; text-align: left;
-        }
-
-        .participant-item { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
-        .p-avatar { width: 32px; height: 32px; border-radius: 50%; background: #1a73e8; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.8rem; }
-        .p-name { flex: 1; font-size: 0.9rem; }
-        .p-icons { color: #5f6368; }
-
-        /* CHAT STYLE */
-        .chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; margin: -1.5rem; }
-        .chat-messages { flex: 1; padding: 1.5rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
-        .empty-chat { margin: auto; text-align: center; color: #9aa0a6; font-size: 0.85rem; }
-        .chat-msg { display: flex; flex-direction: column; }
-        .chat-msg.mine { align-items: flex-end; }
-        .msg-header { display: flex; gap: 0.5rem; font-size: 0.75rem; color: #5f6368; margin-bottom: 0.25rem; align-items: baseline; }
-        .msg-bubble { background: #f1f3f4; padding: 0.6rem 1rem; border-radius: 0 16px 16px 16px; font-size: 0.9rem; color: #202124; max-width: 85%; word-break: break-word; }
-        .chat-msg.mine .msg-bubble { background: #e8f0fe; border-radius: 16px 0 16px 16px; }
-        .chat-input-area { padding: 1rem; border-top: 1px solid #e8eaed; display: flex; gap: 0.5rem; background: white; }
-        .chat-input-area input { flex: 1; padding: 0.75rem 1rem; border-radius: 24px; border: 1px solid #dadce0; outline: none; transition: 0.2s; }
-        .chat-input-area input:focus { border-color: #1a73e8; }
-        .chat-input-area button { background: none; border: none; color: #1a73e8; font-weight: 600; cursor: pointer; padding: 0 0.5rem; }
-        .chat-input-area button:disabled { color: #dadce0; cursor: not-allowed; }
-
-        .desktop-only { display: flex; }
-        @media (max-width: 800px) { .desktop-only { display: none; } }
-        
-        .audience-badge { background: rgba(255,255,255,0.1); color: white; padding: 0.5rem 1rem; border-radius: 24px; font-size: 0.8rem; font-weight: 500; }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
+}
+
+// Subcomponente para renderizar vídeos remotos com ref dinâmico
+function RemoteVideo({ stream }: { stream: MediaStream }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
+  return <video ref={videoRef} autoPlay playsInline />;
 }

@@ -6,9 +6,29 @@ import DailyVerses from "../components/DailyVerses";
 import ThemeToggle from "../components/ThemeToggle";
 import { useTheme } from "../context/ThemeContext";
 
+function getUserId() {
+  let userId = localStorage.getItem('dmeet_userId');
+  if (!userId) {
+    userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('dmeet_userId', userId);
+  }
+  return userId;
+}
+
+function carregarMeuNome() {
+  const userId = localStorage.getItem('dmeet_userId');
+  if (!userId) return '';
+  return localStorage.getItem('dmeet_name_' + userId) || '';
+}
+
+function salvarNome(nome: string) {
+  const userId = getUserId();
+  localStorage.setItem('dmeet_name_' + userId, nome);
+}
+
 export default function Home() {
   const { theme } = useTheme();
-  const [userName, setUserName] = useState(localStorage.getItem("devocional_user_name") || "");
+  const [userName, setUserName] = useState<string>(carregarMeuNome());
   const [roomUrl, setRoomUrl] = useState("");
   const [isLeader, setIsLeader] = useState(false);
   const [roomPassword, setRoomPassword] = useState("");
@@ -26,14 +46,10 @@ export default function Home() {
 
   const saveUser = (name: string) => {
     setUserName(name);
-    localStorage.setItem("devocional_user_name", name);
+    salvarNome(name);
   };
 
   const createRoom = () => {
-    // Aqui geramos a URL. Se for só letras/números que o usuário digitou no botão "Nome", ele usa,
-    // caso contrário gera um aleatório (se o input de nome da sala não existir, vamos usar o gerador padrão).
-    // Nota: Como não temos input de "Nome da Sala" na Home ainda, vamos manter o gerador, mas 
-    // com o parâmetro role correto.
     const name = generateRoomName();
     const params = new URLSearchParams();
     if (isLeader) {
@@ -43,23 +59,26 @@ export default function Home() {
       params.set("role", "audience");
     }
     const query = params.toString() ? `?${params.toString()}` : "";
-    navigate(`/pre/${name}${query}`);
+    navigate(`/room/${name}${query}`);
   };
 
   const joinRoom = (e: React.FormEvent) => {
     e.preventDefault();
     if (roomUrl) {
-      const name = roomUrl.includes("/") ? roomUrl.split("/").pop() : roomUrl;
-      // Quem entra por link sempre é audience por padrão (a menos que o link tenha ?role=host)
-      if (name) navigate(`/pre/${name}?role=audience`);
+      let name = roomUrl;
+      if (roomUrl.includes("/room/")) {
+        name = roomUrl.split("/room/")[1].split("?")[0];
+      } else if (roomUrl.includes("/")) {
+        name = roomUrl.split("/").pop() || roomUrl;
+      }
+      if (name) navigate(`/room/${name}?role=audience`);
     }
   };
 
-  // ── 3 passos ──
+  // ── 2 passos ──
   const steps = [
     { n: "1", label: "Digite seu nome" },
-    { n: "2", label: "Clique em Entrar" },
-    { n: "3", label: "Permita câmera/mic se pedir" },
+    { n: "2", label: "Permita câmera/mic" },
   ];
 
   return (

@@ -8,15 +8,15 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
   /* Paleta Azul */
-  --color-brand-blue-1:    #0b3d91;
-  --color-brand-blue-2:    #1e3a8a;
-  --color-brand-blue-3:    #2563eb;
+  --color-brand-blue-1: #0b3d91;
+  --color-brand-blue-2: #1e3a8a;
+  --color-brand-blue-3: #2563eb;
   --color-brand-blue-soft: #3b82f6;
-  --color-brand-blue-muted:#60a5fa;
-  --color-brand-blue-light:#93c5fd;
+  --color-brand-blue-muted: #60a5fa;
+  --color-brand-blue-light: #93c5fd;
 
   /* Dark */
-  --color-brand-dark:  #05060a;
+  --color-brand-dark: #05060a;
   --color-brand-dark2: #0d0e14;
 }
 
@@ -27,45 +27,46 @@
   --transition: 0.25s ease;
 
   /* Dark mode (padrão) */
-  --bg-page:          #05060a;
-  --bg-card:          rgba(255, 255, 255, 0.04);
-  --bg-input:         rgba(0, 0, 0, 0.35);
-  --border-card:      rgba(37, 99, 235, 0.22);
-  --border-input:     rgba(37, 99, 235, 0.18);
+  --bg-page: #05060a;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --bg-input: rgba(0, 0, 0, 0.35);
+  --border-card: rgba(37, 99, 235, 0.22);
+  --border-input: rgba(37, 99, 235, 0.18);
   --border-input-focus: rgba(37, 99, 235, 0.6);
-  --text-primary:     rgba(255, 255, 255, 0.92);
-  --text-secondary:   rgba(255, 255, 255, 0.55);
-  --text-muted:       rgba(255, 255, 255, 0.25);
-  --accent:           #2563eb;
-  --accent-hover:     #3b82f6;
-  --verse-ref:        #60a5fa;
-  --glow-card:        0 0 40px rgba(37, 99, 235, 0.12);
-  --scrollbar-track:  #0d0e14;
-  --scrollbar-thumb:  #1e3a8a;
+  --text-primary: rgba(255, 255, 255, 0.92);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-muted: rgba(255, 255, 255, 0.25);
+  --accent: #2563eb;
+  --accent-hover: #3b82f6;
+  --verse-ref: #60a5fa;
+  --glow-card: 0 0 40px rgba(37, 99, 235, 0.12);
+  --scrollbar-track: #0d0e14;
+  --scrollbar-thumb: #1e3a8a;
 }
 
 html.light {
-  --bg-page:          #ffffff;
-  --bg-card:          rgba(255, 255, 255, 0.9);
-  --bg-input:         #f8fafc;
-  --border-card:      rgba(37, 99, 235, 0.15);
-  --border-input:     rgba(37, 99, 235, 0.2);
+  --bg-page: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.9);
+  --bg-input: #f8fafc;
+  --border-card: rgba(37, 99, 235, 0.15);
+  --border-input: rgba(37, 99, 235, 0.2);
   --border-input-focus: rgba(37, 99, 235, 0.5);
-  --text-primary:     #0f172a;
-  --text-secondary:   #475569;
-  --text-muted:       #94a3b8;
-  --accent:           #2563eb;
-  --accent-hover:     #1d4ed8;
-  --verse-ref:        #2563eb;
-  --glow-card:        0 4px 24px rgba(37, 99, 235, 0.09);
-  --scrollbar-track:  #f1f5f9;
-  --scrollbar-thumb:  #bfdbfe;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --verse-ref: #2563eb;
+  --glow-card: 0 4px 24px rgba(37, 99, 235, 0.09);
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #bfdbfe;
 }
 
 /* ─────────────────────────────────────────────
    BASE
    ───────────────────────────────────────────── */
-html, body {
+html,
+body {
   background-color: var(--bg-page);
   color: var(--text-primary);
   transition: background-color var(--transition), color var(--transition);
@@ -81,7 +82,7 @@ html, body {
 }
 
 .bg-brand-gradient-dark {
-  background: linear-gradient(135deg, rgba(11,61,145,0.18) 0%, rgba(30,58,138,0.22) 100%);
+  background: linear-gradient(135deg, rgba(11, 61, 145, 0.18) 0%, rgba(30, 58, 138, 0.22) 100%);
 }
 
 .bg-brand-gradient-light {
@@ -149,10 +150,156 @@ html, body {
 /* ─────────────────────────────────────────────
    SCROLLBAR
    ───────────────────────────────────────────── */
-::-webkit-scrollbar        { width: 6px; height: 6px; }
-::-webkit-scrollbar-track  { background: var(--scrollbar-track); }
-::-webkit-scrollbar-thumb  { background: var(--scrollbar-thumb); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #2563eb; }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2563eb;
+}
 
 /* Jitsi container */
-#jitsi-container { height: 100%; width: 100%; }
+#jitsi-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* ─────────────────────────────────────────────
+   MOBILE FIXES & WEBRTC ROOM LAYOUT
+   ───────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  height: -webkit-fill-available;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  min-height: -webkit-fill-available;
+  overflow: hidden;
+}
+
+/* Container da sala de reunião */
+.sala-container {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  /* dynamic viewport height - funciona no mobile */
+  height: 100vh;
+  /* fallback */
+  overflow: hidden;
+  position: relative;
+  background-color: var(--bg-page);
+}
+
+/* Área dos vídeos ocupa o espaço disponível */
+.videos-area {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  /* Grid responsivo: 1 coluna no mobile, 2 no desktop */
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px;
+  padding: 8px;
+  padding-bottom: 80px;
+  /* espaço para os controles fixos */
+  align-content: center;
+}
+
+/* Cada tile de vídeo */
+.video-tile {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #1a1a2e;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-card);
+}
+
+.video-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  /* mirror effect */
+}
+
+/* Controles fixos na parte inferior */
+.controles-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding-bottom: env(safe-area-inset-bottom);
+  /* iPhone notch */
+  z-index: 100;
+}
+
+/* Label do participante no tile */
+.tile-label {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  z-index: 10;
+}
+
+/* Tela inicial responsiva */
+.tela-inicial {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+/* Versículos e formulário menores no mobile */
+@media (max-height: 700px) {
+  .versiculo-card {
+    display: none;
+  }
+
+  /* esconde versículo em telas pequenas */
+  .passos-indicador {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-card {
+    width: 100%;
+    padding: 16px;
+  }
+}
