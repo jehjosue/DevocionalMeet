@@ -1,17 +1,38 @@
 import express from "express";
+import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
 dotenv.config();
 
+const ALLOWED_ORIGINS = [
+  "https://www.devocionalmeet.shop",
+  "https://devocionalmeet.shop",
+  "http://localhost:3000",
+  "http://localhost:5173",
+];
+
 async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const httpServer = http.createServer(app);
 
+  // CORS para requisições HTTP normais
+  app.use(
+    cors({
+      origin: ALLOWED_ORIGINS,
+      methods: ["GET", "POST"],
+      credentials: true,
+    })
+  );
+
   const io = new Server(httpServer, {
-    cors: { origin: "*" },
+    cors: {
+      origin: ALLOWED_ORIGINS,
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
   });
 
   io.on("connection", (socket) => {
