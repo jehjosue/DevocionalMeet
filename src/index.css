@@ -661,6 +661,8 @@ body {
 .video-grid.count-2 {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr 1fr;
+  padding: 0;
+  padding-bottom: 90px;
 }
 
 @media (min-width: 768px) {
@@ -728,9 +730,19 @@ body {
   height: 100%;
   border-radius: 12px;
   overflow: hidden;
-  background: #3c4043;
+  background: #202124;
   transition: all 0.3s ease;
   min-height: 0;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.video-item video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
 }
 
 /* Sem bordas no fullscreen */
