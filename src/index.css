@@ -659,7 +659,7 @@ body {
 
 .video-grid.count-1 .video-item {
   border-radius: 0;
-  height: calc(100dvh) !important;
+  height: calc(100dvh - 90px) !important;
 }
 
 /* ── 2 pessoas: lado a lado (portrait no mobile) ── */

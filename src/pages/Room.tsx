@@ -352,7 +352,10 @@ export default function Room() {
   });
 
   const allUids = ["local", ...remoteCandidates];
-  const gridCountClass = totalParticipantes >= 7 ? "count-many" : `count-${totalParticipantes}`;
+  let gridCountClass = `count-${totalParticipantes}`;
+  if (totalParticipantes > 6) {
+    gridCountClass = "count-many";
+  }
 
   const renderVideoCard = (uid: string | number) => {
     const isLocal = uid === "local";
