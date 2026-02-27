@@ -18,6 +18,26 @@ interface RemoteUser {
   audioTrack?: any;
 }
 
+// Sub-componente para isolar os Playbacks das tracks do Agora
+const VideoPlayer = ({ track, id, className }: { track: any; id: string; className: string }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!track || !containerRef.current) return;
+
+    // Evita chamar play() múltiplas vezes e causar "flicker"
+    if (!containerRef.current.querySelector("video") && !containerRef.current.querySelector("div[class*='agora']")) {
+      try {
+        track.play(containerRef.current);
+      } catch (err) {
+        console.error("[Agora] Erro ao tocar vídeo isolado:", err);
+      }
+    }
+  }, [track]);
+
+  return <div id={id} className={className} style={{ width: "100%", height: "100%" }} ref={containerRef} />;
+};
+
 export default function Room() {
   const { roomName } = useParams();
   const [searchParams] = useSearchParams();
@@ -118,12 +138,7 @@ export default function Room() {
           return [...prev, { uid: user.uid, name, videoTrack: user.videoTrack }];
         });
 
-        requestAnimationFrame(() => {
-          const el = document.getElementById(`video-remote-${user.uid}`);
-          if (el && user.videoTrack) {
-            user.videoTrack.play(el);
-          }
-        });
+        // O VideoPlayer component agora gerencia o play isoladamente via useEffect limitando flickers
       }
 
       if (mediaType === "audio") {
@@ -198,10 +213,7 @@ export default function Room() {
         localAudioTrackRef.current = audioTrack;
         localVideoTrackRef.current = videoTrack;
 
-        // Mostra vídeo local
-        if (localVideoElRef.current) {
-          videoTrack.play(localVideoElRef.current);
-        }
+        // Mostra vídeo local: (via VideoPlayer)
 
         // Gera UID numérico único
         const uid = Math.floor(Math.random() * 100000);
@@ -374,18 +386,10 @@ export default function Room() {
 
     return (
       <div key={uid} className={cardClass}>
-        <div
+        <VideoPlayer
           id={isLocal ? "video-local-container" : `video-remote-${uid}`}
           className={isLocal ? "video-local" : "video-remoto"}
-          style={{ width: "100%", height: "100%" }}
-          ref={(el) => {
-            if (isLocal) {
-              if (el && localVideoTrackRef.current) localVideoTrackRef.current.play(el);
-              localVideoElRef.current = el; // mantém atualizado
-            } else {
-              if (el && remoteU?.videoTrack) remoteU.videoTrack.play(el);
-            }
-          }}
+          track={isLocal ? localVideoTrackRef.current : remoteU?.videoTrack}
         />
         <div className="tile-label">
           {_name} {_micOff && "🔇"}
