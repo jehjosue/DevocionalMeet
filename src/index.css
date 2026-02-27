@@ -635,71 +635,108 @@ body {
 }
 
 /* ─────────────────────────────────────────────
-   LAYOUT GRID ADAPTATIVO
+   LAYOUT GRID ADAPTATIVO — CORRIGIDO
    ───────────────────────────────────────────── */
 .video-grid {
   display: grid;
-  gap: 8px;
-  padding: 8px;
-  height: 100vh;
+  gap: 4px;
+  padding: 4px;
   height: 100dvh;
   width: 100vw;
   background: #202124;
   overflow: hidden;
   padding-bottom: 90px;
+  box-sizing: border-box;
 }
 
-/* 1 pessoa */
+/* ── 1 pessoa: fullscreen ── */
 .video-grid.count-1 {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
   padding: 0;
-  padding-bottom: 0;
+  gap: 0;
 }
 
-/* 2 pessoas */
+.video-grid.count-1 .video-item {
+  border-radius: 0;
+  height: calc(100dvh) !important;
+}
+
+/* ── 2 pessoas: lado a lado (portrait no mobile) ── */
 .video-grid.count-2 {
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr 1fr;
-  padding: 0;
+  grid-template-columns: 1fr 1fr;
+  /* ← CORRIGIDO: sempre lado a lado */
+  grid-template-rows: 1fr;
+  padding: 4px;
   padding-bottom: 90px;
+  gap: 4px;
 }
 
+/* Desktop: muda para landscape */
 @media (min-width: 768px) {
   .video-grid.count-2 {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr;
+    gap: 8px;
+    padding: 8px;
+    padding-bottom: 90px;
   }
 }
 
-/* 3 pessoas - layout assimétrico */
+/* ── 3 pessoas ── */
 .video-grid.count-3 {
-  grid-template-columns: 1fr;
-  grid-template-rows: 2fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  padding: 4px;
+  padding-bottom: 90px;
+  gap: 4px;
+}
+
+/* Primeiro item ocupa linha inteira no mobile */
+.video-grid.count-3 .video-item:first-child {
+  grid-column: 1 / -1;
 }
 
 @media (min-width: 768px) {
   .video-grid.count-3 {
     grid-template-columns: 2fr 1fr;
     grid-template-rows: 1fr 1fr;
+    gap: 8px;
+    padding: 8px;
+    padding-bottom: 90px;
   }
 
   .video-grid.count-3 .video-item:first-child {
+    grid-column: 1;
     grid-row: 1 / -1;
   }
 }
 
-/* 4 pessoas */
+/* ── 4 pessoas: 2x2 ── */
 .video-grid.count-4 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  padding-bottom: 90px;
 }
 
-/* 5-6 pessoas */
+@media (min-width: 768px) {
+  .video-grid.count-4 {
+    gap: 8px;
+    padding: 8px;
+    padding-bottom: 90px;
+  }
+}
+
+/* ── 5-6 pessoas ── */
 .video-grid.count-5,
 .video-grid.count-6 {
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  padding-bottom: 90px;
 }
 
 @media (min-width: 768px) {
@@ -708,50 +745,58 @@ body {
   .video-grid.count-6 {
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(2, 1fr);
+    gap: 8px;
+    padding: 8px;
+    padding-bottom: 90px;
   }
 }
 
-/* 7+ pessoas */
+/* ── 7+ pessoas ── */
 .video-grid.count-many {
   grid-template-columns: repeat(2, 1fr);
   grid-auto-rows: 1fr;
   overflow-y: auto;
+  gap: 4px;
+  padding: 4px;
+  padding-bottom: 90px;
 }
 
 @media (min-width: 768px) {
   .video-grid.count-many {
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 8px;
+    padding: 8px;
+    padding-bottom: 90px;
   }
 }
 
+/* ── CADA ITEM ── */
 .video-item {
   position: relative;
   width: 100%;
   height: 100%;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #202124;
-  transition: all 0.3s ease;
   min-height: 0;
   min-width: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #2d2d30;
   display: flex;
   justify-content: center;
   align-items: center;
+  transition: box-shadow 0.3s ease;
 }
 
-.video-item video {
+/* Vídeo dentro do item */
+.video-item video,
+.video-item>div,
+.video-item .video-local,
+.video-item .video-remoto {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
 }
 
-/* Sem bordas no fullscreen */
-.video-grid.count-1 .video-item {
-  border-radius: 0;
-  background: transparent;
-  height: 100dvh !important;
-}
-
+/* Bordas especiais */
 .video-item.falando {
   box-shadow: 0 0 0 3px #34a853, 0 6px 20px rgba(52, 168, 83, 0.3);
   z-index: 5;
@@ -762,13 +807,23 @@ body {
   z-index: 2;
 }
 
-.video-item video,
-.video-item>div,
-.video-item .video-local,
-.video-item .video-remoto {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
+/* Label do participante */
+.tile-label {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 3px 10px;
+  border-radius: 20px;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
 }
 
 .controles-container {
