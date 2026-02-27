@@ -654,6 +654,7 @@ body {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
   padding: 0;
+  padding-bottom: 0;
 }
 
 /* 2 pessoas */
@@ -735,6 +736,8 @@ body {
 /* Sem bordas no fullscreen */
 .video-grid.count-1 .video-item {
   border-radius: 0;
+  background: transparent;
+  height: 100dvh !important;
 }
 
 .video-item.falando {
