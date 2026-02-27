@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, MessageSquare, X, Heart } from "lucide-react";
+import { Copy, LogOut, Mic, MicOff, Video, VideoOff, Users, MessageSquare, X, Heart } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import AgoraRTC, {
   IAgoraRTCClient,
-  IAgoraRTCRemoteUser,
   ICameraVideoTrack,
   IMicrophoneAudioTrack,
 } from "agora-rtc-sdk-ng";
@@ -16,6 +15,22 @@ interface RemoteUser {
   name: string;
   videoTrack?: any;
   audioTrack?: any;
+}
+
+// Força o Agora a preencher 100% do container pai
+function fixAgoraSize(el: HTMLElement) {
+  // Corrige a div wrapper injetada pelo Agora
+  const agoraWrapper = el.querySelector<HTMLElement>("div");
+  if (agoraWrapper) {
+    agoraWrapper.style.cssText =
+      "width:100%!important;height:100%!important;position:absolute!important;top:0!important;left:0!important;transform:none!important;";
+  }
+  // Corrige o elemento <video>
+  const video = el.querySelector<HTMLVideoElement>("video");
+  if (video) {
+    video.style.cssText =
+      "width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;transform:none!important;";
+  }
 }
 
 export default function Room() {
@@ -42,19 +57,15 @@ export default function Room() {
   const role = searchParams.get("role") || "audience";
   const isHost = role === "host";
 
-  // Emojis Flutuantes Constantes
   const DEVOCIONAL_EMOJIS = ["✝️", "🙏", "✨", "🕊️", "📖"];
   const [activeEmojis, setActiveEmojis] = useState<{ id: string; emoji: string; left: number }[]>([]);
 
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const localVideoTrackRef = useRef<ICameraVideoTrack | null>(null);
   const localAudioTrackRef = useRef<IMicrophoneAudioTrack | null>(null);
-  const localVideoElRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
-  // Map uid -> name
   const uidNameMap = useRef<Map<string | number, string>>(new Map());
 
-  // Estados DevocionalMeet (Mão, Speakers)
   const [maoLevantada, setMaoLevantada] = useState(false);
   const [maosRemotas, setMaosRemotas] = useState<{ id: string | number; timestamp: number }[]>([]);
   const [activeSpeakers, setActiveSpeakers] = useState<Set<string | number>>(new Set());
@@ -70,7 +81,6 @@ export default function Room() {
       return;
     }
 
-    // Socket.io apenas para chat e nomes
     const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
     socketRef.current = socket;
 
@@ -85,58 +95,36 @@ export default function Room() {
     socket.on("raise_hand", (data: { uid: string | number; isRaised: boolean; timestamp: number }) => {
       setMaosRemotas((prev) => {
         if (data.isRaised) {
-          if (!prev.find((m) => m.id === data.uid)) {
+          if (!prev.find((m) => String(m.id) === String(data.uid))) {
             return [...prev, { id: data.uid, timestamp: data.timestamp }];
           }
           return prev;
         } else {
-          return prev.filter((m) => m.id !== data.uid);
+          return prev.filter((m) => String(m.id) !== String(data.uid));
         }
       });
     });
 
-    // Agora RTC
     const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
     clientRef.current = client;
 
-    // Quando um usuário remoto publica mídia
     client.on("user-published", async (user, mediaType) => {
-      console.log("[Agora] user-published:", user.uid, mediaType);
       await client.subscribe(user, mediaType);
-
       const name = uidNameMap.current.get(user.uid) || "Participante";
 
       if (mediaType === "video") {
         setRemoteUsers((prev) => {
-          const exists = prev.find((u) => u.uid === user.uid);
-          if (exists) {
-            return prev.map((u) =>
-              u.uid === user.uid ? { ...u, videoTrack: user.videoTrack } : u
-            );
-          }
+          const exists = prev.find((u) => String(u.uid) === String(user.uid));
+          if (exists) return prev.map((u) => String(u.uid) === String(user.uid) ? { ...u, videoTrack: user.videoTrack } : u);
           return [...prev, { uid: user.uid, name, videoTrack: user.videoTrack }];
         });
-
-        // Tenta dar play manual imediatamente ao publicar pra garantir
-        setTimeout(() => {
-          const el = document.getElementById(`video-remote-${user.uid}`);
-          if (el && user.videoTrack) {
-            if (!el.querySelector("video") && !el.querySelector("div[class*='agora']")) {
-              try { user.videoTrack.play(el); } catch (e) { }
-            }
-          }
-        }, 100);
       }
 
       if (mediaType === "audio") {
         user.audioTrack?.play();
         setRemoteUsers((prev) => {
-          const exists = prev.find((u) => u.uid === user.uid);
-          if (exists) {
-            return prev.map((u) =>
-              u.uid === user.uid ? { ...u, audioTrack: user.audioTrack } : u
-            );
-          }
+          const exists = prev.find((u) => String(u.uid) === String(user.uid));
+          if (exists) return prev.map((u) => String(u.uid) === String(user.uid) ? { ...u, audioTrack: user.audioTrack } : u);
           return [...prev, { uid: user.uid, name, audioTrack: user.audioTrack }];
         });
       }
@@ -144,25 +132,20 @@ export default function Room() {
 
     client.on("user-unpublished", (user, mediaType) => {
       if (mediaType === "video") {
-        setRemoteUsers((prev) =>
-          prev.map((u) => (u.uid === user.uid ? { ...u, videoTrack: undefined } : u))
-        );
+        setRemoteUsers((prev) => prev.map((u) => String(u.uid) === String(user.uid) ? { ...u, videoTrack: undefined } : u));
       }
     });
 
     client.on("user-left", (user) => {
-      setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
+      setRemoteUsers((prev) => prev.filter((u) => String(u.uid) !== String(user.uid)));
       uidNameMap.current.delete(user.uid);
-      setSpeakerHistory((prev) => prev.filter((id) => id !== user.uid));
-      setMaosRemotas((prev) => prev.filter((m) => m.id !== user.uid));
+      setSpeakerHistory((prev) => prev.filter((id) => String(id) !== String(user.uid)));
+      setMaosRemotas((prev) => prev.filter((m) => String(m.id) !== String(user.uid)));
     });
 
-    // Recebe nomes via socket
     socket.on("user-name", (uid: string | number, name: string) => {
       uidNameMap.current.set(uid, name);
-      setRemoteUsers((prev) =>
-        prev.map((u) => (String(u.uid) === String(uid) ? { ...u, name } : u))
-      );
+      setRemoteUsers((prev) => prev.map((u) => String(u.uid) === String(uid) ? { ...u, name } : u));
     });
 
     const init = async () => {
@@ -175,67 +158,49 @@ export default function Room() {
         client.on("volume-indicator", (volumes) => {
           const speakingUids = new Set<string | number>();
           volumes.forEach((v) => {
-            if (v.level > 5) {
-              const uid = v.uid === 0 ? "local" : v.uid;
-              speakingUids.add(uid);
-            }
+            if (v.level > 5) speakingUids.add(v.uid === 0 ? "local" : String(v.uid));
           });
           setActiveSpeakers(speakingUids);
-
           if (speakingUids.size > 0) {
             setSpeakerHistory((prev) => {
               const newHist = [...prev];
               speakingUids.forEach((suid) => {
-                const idx = newHist.indexOf(suid);
+                const idx = newHist.findIndex(id => String(id) === String(suid));
                 if (idx !== -1) newHist.splice(idx, 1);
                 newHist.unshift(suid);
               });
-              return newHist.slice(0, 20); // guarda os últimos 20 que falaram
+              return newHist.slice(0, 20);
             });
           }
         });
 
-        // Cria tracks locais
-        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks().catch(async () => {
+          // Fallback se ambos falharem, tentar apenas um por vez pode ser complexo aqui,
+          // então mostramos erro se a permissão básica for negada.
+          throw new Error("PERMISSION_DENIED");
+        });
+
         localAudioTrackRef.current = audioTrack;
         localVideoTrackRef.current = videoTrack;
 
-        // Mostra vídeo local: (inline via ref)
-        if (localVideoElRef.current && videoTrack) {
-          if (!localVideoElRef.current.querySelector("video") && !localVideoElRef.current.querySelector("div[class*='agora']")) {
-            try { videoTrack.play(localVideoElRef.current); } catch (e) { }
-          }
-        }
-
-        // Gera UID numérico único
         const uid = Math.floor(Math.random() * 100000);
         localUidRef.current = uid;
 
-        // Log do canal para diagnóstico
-        console.log("[Agora] Entrando no canal:", roomName, "| UID:", uid, "| AppID:", AGORA_APP_ID);
-
-        // Entra no canal Agora
         await client.join(AGORA_APP_ID, roomName!, null, uid);
-        console.log("[Agora] JOIN bem-sucedido no canal:", roomName);
-
-        // Publica tracks
         await client.publish([audioTrack, videoTrack]);
-        console.log("[Agora] Tracks publicados com sucesso");
 
-        // Anuncia nome via socket
         socket.emit("join-room", roomName, String(uid), userName);
         socket.emit("announce-name", roomName, uid, userName);
 
         clearTimeout(failTimeout);
         setJoined(true);
       } catch (err: any) {
-        console.error("[Agora] Erro:", err);
         clearTimeout(failTimeout);
         const msg = err?.message || String(err);
         if (msg.includes("PERMISSION_DENIED") || msg.includes("getUserMedia") || msg.includes("NotFound")) {
           setConnectionError("Permissão de câmera/microfone negada ou dispositivo não encontrado.");
         } else {
-          setConnectionError(`Erro Agora: ${msg}. Verifique o App ID ou tente novamente.`);
+          setConnectionError(`Erro: ${msg}`);
         }
       }
     };
@@ -243,37 +208,28 @@ export default function Room() {
     init();
 
     return () => {
-      localVideoTrackRef.current?.stop();
-      localVideoTrackRef.current?.close();
-      localAudioTrackRef.current?.stop();
-      localAudioTrackRef.current?.close();
-      client.leave();
-      socket.disconnect();
+      const cleanup = async () => {
+        localVideoTrackRef.current?.stop();
+        localVideoTrackRef.current?.close();
+        localAudioTrackRef.current?.stop();
+        localAudioTrackRef.current?.close();
+        if (clientRef.current) {
+          await clientRef.current.leave().catch(console.error);
+        }
+        socketRef.current?.disconnect();
+      };
+      cleanup();
     };
   }, [roomName]);
 
-  // Reproduz vídeo remoto quando o elemento é montado
-  const playRemoteVideo = useCallback((uid: string | number, videoTrack: any) => {
-    const el = document.getElementById(`video-remote-${uid}`);
-    if (el && videoTrack) {
-      videoTrack.play(el);
-    }
-  }, []);
-
   const toggleMic = () => {
-    const track = localAudioTrackRef.current;
-    if (track) {
-      track.setEnabled(!micOn);
-      setMicOn(!micOn);
-    }
+    localAudioTrackRef.current?.setEnabled(!micOn);
+    setMicOn(!micOn);
   };
 
   const toggleVideo = () => {
-    const track = localVideoTrackRef.current;
-    if (track) {
-      track.setEnabled(!videoOn);
-      setVideoOn(!videoOn);
-    }
+    localVideoTrackRef.current?.setEnabled(!videoOn);
+    setVideoOn(!videoOn);
   };
 
   const sendMessage = (e: React.FormEvent) => {
@@ -290,139 +246,105 @@ export default function Room() {
   };
 
   const copyLink = () => {
-    const cleanUrl = `${window.location.origin}/room/${roomName}`;
-    navigator.clipboard.writeText(cleanUrl);
+    navigator.clipboard.writeText(`${window.location.origin}/room/${roomName}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const adicionarEmoji = useCallback((emoji: string) => {
     const id = Math.random().toString(36).substr(2, 9);
-    // Posição horizontal aleatória entre 10% e 90% da tela para não cortar nas bordas
     const left = 10 + Math.random() * 80;
-
     setActiveEmojis((prev) => [...prev, { id, emoji, left }]);
-
-    // Remove o emoji após a animação (4 segundos)
-    setTimeout(() => {
-      setActiveEmojis((prev) => prev.filter((e) => e.id !== id));
-    }, 4000);
+    setTimeout(() => setActiveEmojis((prev) => prev.filter((e) => e.id !== id)), 4000);
   }, []);
 
   const enviarReacaoAleatoria = () => {
     const emoji = DEVOCIONAL_EMOJIS[Math.floor(Math.random() * DEVOCIONAL_EMOJIS.length)];
     adicionarEmoji(emoji);
-    if (socketRef.current) {
-      socketRef.current.emit("reaction", emoji);
-    }
+    socketRef.current?.emit("reaction", emoji);
   };
 
   const toggleMao = () => {
     const newState = !maoLevantada;
     setMaoLevantada(newState);
     if (socketRef.current && localUidRef.current) {
-      socketRef.current.emit("raise_hand", {
-        uid: localUidRef.current,
-        isRaised: newState,
-        timestamp: Date.now()
-      });
+      socketRef.current.emit("raise_hand", { uid: localUidRef.current, isRaised: newState, timestamp: Date.now() });
     }
   };
 
-  // ────────────────────────────────────────────────────────
-  // ORDENAÇÃO E RENDERING (GRID)
-  // ────────────────────────────────────────────────────────
-  const remoteCandidates = remoteUsers.map((u) => u.uid);
-
-  // Ordena por mão levantada, depois por quem falou
+  // Ordenação
+  const remoteCandidates = [...remoteUsers.map((u) => u.uid)];
   remoteCandidates.sort((a, b) => {
-    const aHand = maosRemotas.find((m) => m.id === a);
-    const bHand = maosRemotas.find((m) => m.id === b);
+    const aHand = maosRemotas.find((m) => String(m.id) === String(a));
+    const bHand = maosRemotas.find((m) => String(m.id) === String(b));
     if (aHand && !bHand) return -1;
     if (!aHand && bHand) return 1;
     if (aHand && bHand) return bHand.timestamp - aHand.timestamp;
 
-    const aSpeakIdx = speakerHistory.indexOf(a);
-    const bSpeakIdx = speakerHistory.indexOf(b);
+    const aSpeakIdx = speakerHistory.findIndex(id => String(id) === String(a));
+    const bSpeakIdx = speakerHistory.findIndex(id => String(id) === String(b));
     if (aSpeakIdx !== -1 && bSpeakIdx === -1) return -1;
     if (aSpeakIdx === -1 && bSpeakIdx !== -1) return 1;
     if (aSpeakIdx !== -1 && bSpeakIdx !== -1) return aSpeakIdx - bSpeakIdx;
-
-    return 0; // ordem original
+    return 0;
   });
 
   const allUids = ["local", ...remoteCandidates];
-  let gridCountClass = `count-${totalParticipantes}`;
-  if (totalParticipantes > 6) {
-    gridCountClass = "count-many";
-  }
+  const gridCountClass = totalParticipantes > 6 ? "count-many" : `count-${totalParticipantes}`;
+
+  // Ref callback: faz play + fix no mount do elemento
+  const videoRefCallback = useCallback((el: HTMLDivElement | null, uid: string | number) => {
+    if (!el) return;
+    const isLocal = uid === "local";
+    const track = isLocal
+      ? localVideoTrackRef.current
+      : remoteUsers.find((u) => String(u.uid) === String(uid))?.videoTrack;
+
+    if (track && !el.querySelector("video")) {
+      try {
+        track.play(el);
+        // Espera o Agora injetar o DOM e então corrige
+        setTimeout(() => {
+          fixAgoraSize(el);
+          // Observa mudanças de tamanho e re-aplica o fix
+          const observer = new ResizeObserver(() => fixAgoraSize(el));
+          observer.observe(el);
+        }, 100);
+      } catch (e) { console.error("play error", e); }
+    }
+  }, [remoteUsers]);
 
   const renderVideoCard = (uid: string | number) => {
     const isLocal = uid === "local";
-    const remoteU = isLocal ? null : remoteUsers.find((u) => u.uid === uid);
+    const remoteU = isLocal ? null : remoteUsers.find((u) => String(u.uid) === String(uid));
     if (!isLocal && !remoteU) return null;
 
-    const _name = isLocal ? `${userName} (Você) ${isHost ? "👑" : ""}` : remoteU?.name || "Participante";
+    const _name = isLocal ? `${userName} (Você)${isHost ? " 👑" : ""}` : (remoteU?.name || "Participante");
     const _micOff = isLocal ? !micOn : false;
-    const hand = isLocal ? maoLevantada : maosRemotas.some((m) => m.id === uid);
-    const isSpeaking = activeSpeakers.has(uid);
+    const hand = isLocal ? maoLevantada : maosRemotas.some((m) => String(m.id) === String(uid));
+    const isSpeaking = activeSpeakers.has(isLocal ? "local" : String(uid));
 
     let cardClass = "video-item";
     if (isSpeaking) cardClass += " falando";
     if (isHost && isLocal) cardClass += " moderador";
 
     return (
-      <div key={uid} className={cardClass} style={{ position: "relative", overflow: "hidden" }}>
+      <div key={String(uid)} className={cardClass}>
+        {/* Wrapper absoluto que o Agora vai preencher */}
         <div
-          id={isLocal ? "video-local-container" : `video-remote-${uid}`}
+          id={isLocal ? "vwrap-local" : `vwrap-${uid}`}
+          ref={(el) => { if (el) videoRefCallback(el, uid); }}
           style={{
             position: "absolute",
-            top: 0,
-            left: 0,
+            inset: 0,
             width: "100%",
             height: "100%",
-            // Espelha apenas o vídeo local
-            transform: isLocal ? "scaleX(-1)" : "scaleX(1)",
-          }}
-          ref={(el) => {
-            if (el) {
-              const track = isLocal ? localVideoTrackRef.current : remoteU?.videoTrack;
-              if (track) {
-                // Limpa container antes de dar play para evitar duplicatas
-                if (!el.querySelector("video")) {
-                  try {
-                    track.play(el);
-                    // Após play, força o video element a cobrir tudo
-                    setTimeout(() => {
-                      const video = el.querySelector("video");
-                      if (video) {
-                        video.style.width = "100%";
-                        video.style.height = "100%";
-                        video.style.objectFit = "cover";
-                        video.style.position = "absolute";
-                        video.style.top = "0";
-                        video.style.left = "0";
-                        // Desfaz espelho duplo no elemento video (já espelhamos no pai)
-                        video.style.transform = "none";
-                      }
-                      // Também corrige a div injetada pelo Agora
-                      const agoraDiv = el.querySelector("div");
-                      if (agoraDiv) {
-                        agoraDiv.style.width = "100%";
-                        agoraDiv.style.height = "100%";
-                        agoraDiv.style.transform = "none";
-                      }
-                    }, 200);
-                  } catch (e) { console.error("play error", e); }
-                }
-              }
-              if (isLocal) localVideoElRef.current = el;
-            }
+            overflow: "hidden",
+            // Espelha só o local
+            transform: isLocal ? "scaleX(-1)" : "none",
           }}
         />
-        <div className="tile-label">
-          {_name} {_micOff && "🔇"}
-        </div>
+        <div className="tile-label">{_name}{_micOff ? " 🔇" : ""}</div>
         {hand && <div className="icone-mao">🙋</div>}
       </div>
     );
@@ -435,7 +357,7 @@ export default function Room() {
         👥 {totalParticipantes} participante{totalParticipantes > 1 ? "s" : ""}
       </div>
 
-      {/* Grid de vídeos no novo Layout Adaptativo */}
+      {/* Grid de vídeos */}
       <main className={`video-grid ${gridCountClass}`}>
         {allUids.map((uid) => renderVideoCard(uid))}
       </main>
@@ -451,7 +373,7 @@ export default function Room() {
         </div>
       ))}
 
-      {/* OVERFLOW MENU (Telas Menores) */}
+      {/* OVERFLOW MENU mobile */}
       <AnimatePresence>
         {showMoreMenu && (
           <motion.div
@@ -460,28 +382,18 @@ export default function Room() {
             exit={{ opacity: 0, y: 20 }}
             className="fixed bottom-[90px] right-4 bg-[#2c2f33] rounded-2xl p-3 flex gap-3 shadow-2xl z-[150] border border-white/10"
           >
-            <button
-              className="flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition"
-              onClick={() => { enviarReacaoAleatoria(); setShowMoreMenu(false); }}
-            >
-              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-xl">
-                ❤️
-              </div>
+            <button className="flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition"
+              onClick={() => { enviarReacaoAleatoria(); setShowMoreMenu(false); }}>
+              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-xl">❤️</div>
               <span className="text-[10px]">Reagir</span>
             </button>
-            <button
-              className={`flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition ${maoLevantada ? "text-yellow-400" : ""}`}
-              onClick={() => { toggleMao(); setShowMoreMenu(false); }}
-            >
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${maoLevantada ? "bg-yellow-500/20" : "bg-white/5"}`}>
-                🙋
-              </div>
+            <button className={`flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition ${maoLevantada ? "text-yellow-400" : ""}`}
+              onClick={() => { toggleMao(); setShowMoreMenu(false); }}>
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${maoLevantada ? "bg-yellow-500/20" : "bg-white/5"}`}>🙋</div>
               <span className="text-[10px]">Mão</span>
             </button>
-            <button
-              className="flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition"
-              onClick={() => { copyLink(); setShowMoreMenu(false); }}
-            >
+            <button className="flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition"
+              onClick={() => { copyLink(); setShowMoreMenu(false); }}>
               <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-xl">
                 <Copy size={20} />
               </div>
@@ -491,80 +403,41 @@ export default function Room() {
         )}
       </AnimatePresence>
 
-      {/* Controles Principais */}
+      {/* Controles */}
       <div className={`controles-container ${totalParticipantes === 1 ? "controles-overlay" : ""}`}>
-        <button
-          className={`btn-controle ${!micOn ? "btn-desligar" : ""}`}
-          onClick={toggleMic}
-          title={micOn ? "Desativar Microfone" : "Ativar Microfone"}
-        >
+        <button className={`btn-controle ${!micOn ? "btn-desligar" : ""}`} onClick={toggleMic}>
           {micOn ? <Mic size={24} /> : <MicOff size={24} />}
         </button>
-
-        <button
-          className={`btn-controle ${!videoOn ? "btn-desligar" : ""}`}
-          onClick={toggleVideo}
-          title={videoOn ? "Desativar Câmera" : "Ativar Câmera"}
-        >
+        <button className={`btn-controle ${!videoOn ? "btn-desligar" : ""}`} onClick={toggleVideo}>
           {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
         </button>
 
-        {/* Botões extras visíveis apenas no Desktop */}
         <div className="hidden md:flex gap-3">
-          <button
-            className="btn-controle"
-            onClick={copyLink}
-            title="Copiar link de convite"
-          >
+          <button className="btn-controle" onClick={copyLink}>
             {copied ? <span className="text-sm font-bold">✓</span> : <Copy size={22} />}
           </button>
-
-          <button
-            className="btn-controle"
-            onClick={enviarReacaoAleatoria}
-            title="Enviar Reação"
-          >
+          <button className="btn-controle" onClick={enviarReacaoAleatoria}>
             <Heart size={24} className="text-pink-400" />
           </button>
-
-          <button
-            className={`btn-controle btn-mao ${maoLevantada ? "ativo" : ""}`}
-            onClick={toggleMao}
-            title="Levantar a mão"
-          >
+          <button className={`btn-controle btn-mao ${maoLevantada ? "ativo" : ""}`} onClick={toggleMao}>
             🙋
           </button>
         </div>
 
-        <button
-          className="btn-controle btn-desligar w-[64px] rounded-[50px] mx-1 md:w-[72px]"
-          onClick={() => navigate("/")}
-          title="Sair da Reunião"
-        >
+        <button className="btn-controle btn-desligar w-[64px] rounded-[50px] mx-1 md:w-[72px]" onClick={() => navigate("/")}>
           <LogOut size={22} />
         </button>
 
-        <button
-          className="btn-controle w-auto px-4 rounded-[50px] gap-2"
-          onClick={() => setShowSidebar(true)}
-          title="Participantes e Chat"
-        >
+        <button className="btn-controle w-auto px-4 rounded-[50px] gap-2" onClick={() => setShowSidebar(true)}>
           <Users size={22} />
-          <span className="bg-blue-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
-            {totalParticipantes}
-          </span>
+          <span className="bg-blue-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">{totalParticipantes}</span>
         </button>
 
-        {/* Menu "Mais opções" para mobile (Agrupado lado direito) */}
-        <button
-          className={`btn-controle md:hidden ${showMoreMenu ? "bg-white/20" : ""}`}
-          onClick={() => setShowMoreMenu(!showMoreMenu)}
-          title="Mais opções"
-        >
+        <button className={`btn-controle md:hidden ${showMoreMenu ? "bg-white/20" : ""}`} onClick={() => setShowMoreMenu(!showMoreMenu)}>
           <div className="flex gap-1">
-            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+            <span className="w-1.5 h-1.5 bg-white rounded-full" />
+            <span className="w-1.5 h-1.5 bg-white rounded-full" />
+            <span className="w-1.5 h-1.5 bg-white rounded-full" />
           </div>
         </button>
       </div>
@@ -573,76 +446,41 @@ export default function Room() {
       <AnimatePresence>
         {showSidebar && (
           <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 z-[100]"
-              onClick={() => setShowSidebar(false)}
-            />
-            <motion.aside
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-[100]" onClick={() => setShowSidebar(false)} />
+            <motion.aside initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 w-full max-w-sm h-full bg-white text-gray-900 z-[101] flex flex-col"
-            >
+              className="fixed top-0 right-0 w-full max-w-sm h-full bg-white text-gray-900 z-[101] flex flex-col">
               <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                 <h2 className="font-semibold text-lg">Detalhes da reunião</h2>
-                <button onClick={() => setShowSidebar(false)} className="text-gray-500 p-2">
-                  <X size={20} />
-                </button>
+                <button onClick={() => setShowSidebar(false)} className="text-gray-500 p-2"><X size={20} /></button>
               </div>
-
               <div className="flex border-b border-gray-200">
                 {(["people", "chat"] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    className={`flex-1 p-3 font-medium transition-colors ${activeTab === tab
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-500"
-                      }`}
-                    onClick={() => setActiveTab(tab)}
-                  >
+                  <button key={tab}
+                    className={`flex-1 p-3 font-medium transition-colors ${activeTab === tab ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-500"}`}
+                    onClick={() => setActiveTab(tab)}>
                     {tab === "people" ? "Pessoas" : "Chat"}
                   </button>
                 ))}
               </div>
-
               <div className="flex-1 overflow-y-auto p-4 flex flex-col">
                 {activeTab === "people" ? (
                   <>
-                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">
-                      LINK DA REUNIÃO
-                    </h3>
-                    <button
-                      className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-xl mb-4 hover:bg-gray-50 transition-colors"
-                      onClick={copyLink}
-                    >
-                      <span className="text-blue-600 font-medium text-sm">
-                        {copied ? "✓ Link Copiado!" : "Copiar link de convite"}
-                      </span>
+                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">LINK DA REUNIÃO</h3>
+                    <button className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-xl mb-4 hover:bg-gray-50 transition-colors" onClick={copyLink}>
+                      <span className="text-blue-600 font-medium text-sm">{copied ? "✓ Link Copiado!" : "Copiar link de convite"}</span>
                       <Copy size={16} className="text-blue-600 flex-shrink-0" />
                     </button>
-
-                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">
-                      PARTICIPANTES ({totalParticipantes})
-                    </h3>
+                    <h3 className="text-xs font-bold text-gray-500 tracking-wider mb-3">PARTICIPANTES ({totalParticipantes})</h3>
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
                           {userName[0]?.toUpperCase() || "?"}
                         </div>
-                        <p className="font-medium text-sm flex-1">
-                          {userName} (Você) {isHost && "👑"}
-                        </p>
-                        {micOn ? (
-                          <Mic size={16} className="text-gray-400" />
-                        ) : (
-                          <MicOff size={16} className="text-red-500" />
-                        )}
+                        <p className="font-medium text-sm flex-1">{userName} (Você) {isHost && "👑"}</p>
+                        {micOn ? <Mic size={16} className="text-gray-400" /> : <MicOff size={16} className="text-red-500" />}
                       </div>
-
                       {remoteUsers.map((remote) => (
                         <div key={remote.uid} className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center font-bold text-sm">
@@ -663,45 +501,23 @@ export default function Room() {
                         </div>
                       ) : (
                         messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            className={`flex flex-col ${msg.sender === userName ? "items-end" : "items-start"
-                              }`}
-                          >
+                          <div key={msg.id} className={`flex flex-col ${msg.sender === userName ? "items-end" : "items-start"}`}>
                             <div className="flex gap-2 items-baseline text-xs text-gray-500 mb-1">
-                              <span className="font-semibold">
-                                {msg.sender === userName ? "Você" : msg.sender}
-                              </span>
+                              <span className="font-semibold">{msg.sender === userName ? "Você" : msg.sender}</span>
                               <span className="text-[10px]">{msg.time}</span>
                             </div>
-                            <div
-                              className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.sender === userName
-                                ? "bg-blue-100 text-blue-900 rounded-tr-sm"
-                                : "bg-gray-100 text-gray-800 rounded-tl-sm"
-                                }`}
-                            >
+                            <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${msg.sender === userName ? "bg-blue-100 text-blue-900 rounded-tr-sm" : "bg-gray-100 text-gray-800 rounded-tl-sm"}`}>
                               {msg.text}
                             </div>
                           </div>
                         ))
                       )}
                     </div>
-                    <form
-                      className="p-3 border-t border-gray-200 flex gap-2 bg-white"
-                      onSubmit={sendMessage}
-                    >
-                      <input
-                        type="text"
-                        placeholder="Envie uma mensagem..."
-                        value={newMessage}
+                    <form className="p-3 border-t border-gray-200 flex gap-2 bg-white" onSubmit={sendMessage}>
+                      <input type="text" placeholder="Envie uma mensagem..." value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
-                        className="flex-1 bg-gray-100 border border-transparent focus:border-blue-500 px-4 py-2 rounded-full text-sm outline-none"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!newMessage.trim()}
-                        className="text-blue-600 font-semibold px-2 disabled:opacity-50"
-                      >
+                        className="flex-1 bg-gray-100 border border-transparent focus:border-blue-500 px-4 py-2 rounded-full text-sm outline-none" />
+                      <button type="submit" disabled={!newMessage.trim()} className="text-blue-600 font-semibold px-2 disabled:opacity-50">
                         Enviar
                       </button>
                     </form>
@@ -712,6 +528,22 @@ export default function Room() {
           </>
         )}
       </AnimatePresence>
+
+      {connectionError && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#2c2f33] p-6 rounded-2xl max-w-sm w-full text-center border border-white/10 shadow-2xl">
+            <Shield className="mx-auto mb-4 text-red-500" size={48} />
+            <h2 className="text-xl font-bold text-white mb-2">Erro de Conexão</h2>
+            <p className="text-gray-400 mb-6 text-sm">{connectionError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition"
+            >
+              Tentar Novamente
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

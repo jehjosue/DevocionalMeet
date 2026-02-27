@@ -635,163 +635,61 @@ body {
 }
 
 /* ─────────────────────────────────────────────
-   LAYOUT GRID ADAPTATIVO — CORRIGIDO
+   GRID ADAPTATIVO — VERSÃO FINAL
    ───────────────────────────────────────────── */
 .video-grid {
+  position: fixed;
+  inset: 0;
   display: grid;
-  gap: 4px;
-  padding: 4px;
-  height: 100dvh;
-  width: 100vw;
+  gap: 3px;
   background: #202124;
-  overflow: hidden;
   padding-bottom: 90px;
   box-sizing: border-box;
 }
 
-/* ── CORREÇÃO: 1 pessoa fullscreen sem barra cinza ── */
-
+/* 1 pessoa */
 .video-grid.count-1 {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
-  padding: 0;
   gap: 0;
-  width: 100vw;
-  height: 100dvh;
+  padding: 0;
+  padding-bottom: 80px;
 }
 
-.video-grid.count-1 .video-item {
-  border-radius: 0;
-  width: 100vw !important;
-  height: calc(100dvh - 90px) !important;
-  background: #202124;
-  overflow: hidden;
-}
-
-/* Força o container do Agora a preencher tudo */
-.video-grid.count-1 .video-item>div,
-.video-grid.count-1 .video-item .video-local,
-.video-grid.count-1 .video-item .video-remoto {
-  width: 100% !important;
-  height: 100% !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-}
-
-/* Força o elemento video a cobrir tudo */
-.video-grid.count-1 .video-item video {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-}
-
-/* Espelho local sem quebrar o tamanho */
-.video-grid.count-1 .video-item .video-local {
-  transform: scaleX(-1) !important;
-}
-
-.video-grid.count-1 .video-item .video-local>div,
-.video-grid.count-1 .video-item .video-local video {
-  transform: none !important;
-}
-
-/* ── 2 pessoas: lado a lado, altura total ── */
+/* 2 pessoas: SEMPRE lado a lado */
 .video-grid.count-2 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr;
-  padding: 0;
-  gap: 3px;
-  height: 100dvh;
-  width: 100vw;
-  padding-bottom: 90px;
-  align-items: stretch;
 }
 
-.video-grid.count-2 .video-item {
-  border-radius: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-  background: #202124;
-}
-
-.video-grid.count-2 .video-item>div {
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
-}
-
-.video-grid.count-2 .video-item video {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-}
-
-/* ── 3 pessoas ── */
+/* 3 pessoas */
 .video-grid.count-3 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  padding: 4px;
-  padding-bottom: 90px;
-  gap: 4px;
 }
 
-/* Primeiro item ocupa linha inteira no mobile */
 .video-grid.count-3 .video-item:first-child {
   grid-column: 1 / -1;
 }
 
-@media (min-width: 768px) {
-  .video-grid.count-3 {
-    grid-template-columns: 2fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    gap: 8px;
-    padding: 8px;
-    padding-bottom: 90px;
-  }
-
-  .video-grid.count-3 .video-item:first-child {
-    grid-column: 1;
-    grid-row: 1 / -1;
-  }
-}
-
-/* ── 4 pessoas: 2x2 ── */
+/* 4 pessoas */
 .video-grid.count-4 {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
-  padding-bottom: 90px;
 }
 
-@media (min-width: 768px) {
-  .video-grid.count-4 {
-    gap: 8px;
-    padding: 8px;
-    padding-bottom: 90px;
-  }
-}
-
-/* ── 5-6 pessoas ── */
+/* 5-6 pessoas */
 .video-grid.count-5,
 .video-grid.count-6 {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  gap: 4px;
-  padding: 4px;
-  padding-bottom: 90px;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+}
+
+/* 7+ */
+.video-grid.count-many {
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: 1fr;
+  overflow-y: auto;
 }
 
 @media (min-width: 768px) {
@@ -799,70 +697,50 @@ body {
   .video-grid.count-5,
   .video-grid.count-6 {
     grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(2, 1fr);
-    gap: 8px;
-    padding: 8px;
-    padding-bottom: 90px;
+    grid-template-rows: 1fr 1fr;
   }
-}
 
-/* ── 7+ pessoas ── */
-.video-grid.count-many {
-  grid-template-columns: repeat(2, 1fr);
-  grid-auto-rows: 1fr;
-  overflow-y: auto;
-  gap: 4px;
-  padding: 4px;
-  padding-bottom: 90px;
-}
-
-@media (min-width: 768px) {
   .video-grid.count-many {
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 8px;
-    padding: 8px;
-    padding-bottom: 90px;
+  }
+
+  .video-grid.count-3 .video-item:first-child {
+    grid-column: 1;
+    grid-row: 1 / -1;
+  }
+
+  .video-grid.count-3 {
+    grid-template-columns: 2fr 1fr;
   }
 }
 
 /* ── CADA ITEM ── */
 .video-item {
   position: relative;
-  width: 100%;
-  height: 100%;
+  /* ESSENCIAL para o filho absolute funcionar */
+  overflow: hidden;
+  border-radius: 10px;
+  background: #202124;
   min-height: 0;
   min-width: 0;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #2d2d30;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transition: box-shadow 0.3s ease;
 }
 
-/* Vídeo dentro do item */
-.video-item video,
-.video-item>div,
-.video-item .video-local,
-.video-item .video-remoto {
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: cover !important;
+.video-grid.count-1 .video-item {
+  border-radius: 0;
 }
 
-/* Bordas especiais */
+/* Bordas de status */
 .video-item.falando {
-  box-shadow: 0 0 0 3px #34a853, 0 6px 20px rgba(52, 168, 83, 0.3);
+  box-shadow: 0 0 0 3px #34a853, 0 4px 16px rgba(52, 168, 83, 0.3);
   z-index: 5;
 }
 
 .video-item.moderador {
-  box-shadow: 0 0 0 3px #fbbc04, 0 6px 20px rgba(251, 188, 4, 0.3);
+  box-shadow: 0 0 0 3px #fbbc04, 0 4px 16px rgba(251, 188, 4, 0.3);
   z-index: 2;
 }
 
-/* Label do participante */
+/* Label */
 .tile-label {
   position: absolute;
   bottom: 8px;
