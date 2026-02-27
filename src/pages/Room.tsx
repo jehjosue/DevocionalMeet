@@ -372,20 +372,51 @@ export default function Room() {
     if (isHost && isLocal) cardClass += " moderador";
 
     return (
-      <div key={uid} className={cardClass}>
+      <div key={uid} className={cardClass} style={{ position: "relative", overflow: "hidden" }}>
         <div
           id={isLocal ? "video-local-container" : `video-remote-${uid}`}
-          className={isLocal ? "video-local" : "video-remoto"}
-          style={{ width: "100%", height: "100%" }}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            // Espelha apenas o vídeo local
+            transform: isLocal ? "scaleX(-1)" : "scaleX(1)",
+          }}
           ref={(el) => {
             if (el) {
               const track = isLocal ? localVideoTrackRef.current : remoteU?.videoTrack;
               if (track) {
-                if (!el.querySelector("video") && !el.querySelector("div[class*='agora']")) {
-                  try { track.play(el); } catch (e) { }
+                // Limpa container antes de dar play para evitar duplicatas
+                if (!el.querySelector("video")) {
+                  try {
+                    track.play(el);
+                    // Após play, força o video element a cobrir tudo
+                    setTimeout(() => {
+                      const video = el.querySelector("video");
+                      if (video) {
+                        video.style.width = "100%";
+                        video.style.height = "100%";
+                        video.style.objectFit = "cover";
+                        video.style.position = "absolute";
+                        video.style.top = "0";
+                        video.style.left = "0";
+                        // Desfaz espelho duplo no elemento video (já espelhamos no pai)
+                        video.style.transform = "none";
+                      }
+                      // Também corrige a div injetada pelo Agora
+                      const agoraDiv = el.querySelector("div");
+                      if (agoraDiv) {
+                        agoraDiv.style.width = "100%";
+                        agoraDiv.style.height = "100%";
+                        agoraDiv.style.transform = "none";
+                      }
+                    }, 200);
+                  } catch (e) { console.error("play error", e); }
                 }
               }
-              if (isLocal) localVideoElRef.current = el; // mantém atualizado
+              if (isLocal) localVideoElRef.current = el;
             }
           }}
         />
