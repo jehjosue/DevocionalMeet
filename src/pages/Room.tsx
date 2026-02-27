@@ -18,32 +18,6 @@ interface RemoteUser {
   audioTrack?: any;
 }
 
-// Sub-componente para isolar os Playbacks das tracks do Agora
-const VideoPlayer = ({ track, id, className }: { track: any; id: string; className: string }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!track || !containerRef.current) return;
-
-    // Evita chamar play() múltiplas vezes e causar "flicker"
-    if (!containerRef.current.querySelector("video") && !containerRef.current.querySelector("div[class*='agora']")) {
-      try {
-        track.play(containerRef.current);
-      } catch (err) {
-        console.error("[Agora] Erro ao tocar vídeo isolado:", err);
-      }
-    }
-
-    return () => {
-      try {
-        if (track) track.stop();
-      } catch (e) { }
-    };
-  }, [track]);
-
-  return <div id={id} className={className} style={{ width: "100%", height: "100%" }} ref={containerRef} />;
-};
-
 export default function Room() {
   const { roomName } = useParams();
   const [searchParams] = useSearchParams();
@@ -144,7 +118,15 @@ export default function Room() {
           return [...prev, { uid: user.uid, name, videoTrack: user.videoTrack }];
         });
 
-        // O VideoPlayer component agora gerencia o play isoladamente via useEffect limitando flickers
+        // Tenta dar play manual imediatamente ao publicar pra garantir
+        setTimeout(() => {
+          const el = document.getElementById(`video-remote-${user.uid}`);
+          if (el && user.videoTrack) {
+            if (!el.querySelector("video") && !el.querySelector("div[class*='agora']")) {
+              try { user.videoTrack.play(el); } catch (e) { }
+            }
+          }
+        }, 100);
       }
 
       if (mediaType === "audio") {
@@ -219,7 +201,12 @@ export default function Room() {
         localAudioTrackRef.current = audioTrack;
         localVideoTrackRef.current = videoTrack;
 
-        // Mostra vídeo local: (via VideoPlayer)
+        // Mostra vídeo local: (inline via ref)
+        if (localVideoElRef.current && videoTrack) {
+          if (!localVideoElRef.current.querySelector("video") && !localVideoElRef.current.querySelector("div[class*='agora']")) {
+            try { videoTrack.play(localVideoElRef.current); } catch (e) { }
+          }
+        }
 
         // Gera UID numérico único
         const uid = Math.floor(Math.random() * 100000);
@@ -392,10 +379,21 @@ export default function Room() {
 
     return (
       <div key={uid} className={cardClass}>
-        <VideoPlayer
+        <div
           id={isLocal ? "video-local-container" : `video-remote-${uid}`}
           className={isLocal ? "video-local" : "video-remoto"}
-          track={isLocal ? localVideoTrackRef.current : remoteU?.videoTrack}
+          style={{ width: "100%", height: "100%" }}
+          ref={(el) => {
+            if (el) {
+              const track = isLocal ? localVideoTrackRef.current : remoteU?.videoTrack;
+              if (track) {
+                if (!el.querySelector("video") && !el.querySelector("div[class*='agora']")) {
+                  try { track.play(el); } catch (e) { }
+                }
+              }
+              if (isLocal) localVideoElRef.current = el; // mantém atualizado
+            }
+          }}
         />
         <div className="tile-label">
           {_name} {_micOff && "🔇"}
@@ -413,7 +411,7 @@ export default function Room() {
       </div>
 
       {/* Grid de vídeos no novo Layout Carrossel */}
-      <main className={`app-container ${totalParticipantes === 1 ? "modo-solo" : ""}`}>
+      <main className={`app-container ${totalParticipantes === 1 ? "modo-solo" : ""} ${superiorUids.length === 0 ? "sem-carrossel" : "com-carrossel"}`}>
         {/* AREA SUPERIOR */}
         <div className="area-superior" style={{ display: superiorUids.length === 0 ? "none" : "flex" }}>
           <div className="carrossel-wrapper">
