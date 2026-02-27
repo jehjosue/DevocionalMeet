@@ -33,6 +33,12 @@ const VideoPlayer = ({ track, id, className }: { track: any; id: string; classNa
         console.error("[Agora] Erro ao tocar vídeo isolado:", err);
       }
     }
+
+    return () => {
+      try {
+        if (track) track.stop();
+      } catch (e) { }
+    };
   }, [track]);
 
   return <div id={id} className={className} style={{ width: "100%", height: "100%" }} ref={containerRef} />;
@@ -409,7 +415,7 @@ export default function Room() {
       {/* Grid de vídeos no novo Layout Carrossel */}
       <main className={`app-container ${totalParticipantes === 1 ? "modo-solo" : ""}`}>
         {/* AREA SUPERIOR */}
-        <div className="area-superior" style={{ display: totalParticipantes === 1 ? "none" : "flex" }}>
+        <div className="area-superior" style={{ display: superiorUids.length === 0 ? "none" : "flex" }}>
           <div className="carrossel-wrapper">
             {superiorUids.length > 0 && <button className="seta-navegacao seta-esquerda" onClick={() => scrollCarousel(-1)}>‹</button>}
             <div className="carrossel-container" ref={carouselRef}>
@@ -425,17 +431,10 @@ export default function Room() {
           </div>
         </div>
 
-        {/* AREA INFERIOR */}
-        <div className="area-inferior" style={{ display: totalParticipantes === 1 ? "none" : "flex" }}>
-          {inferiorUids.map((uid) => renderVideoCard(uid, "inferior"))}
+        {/* AREA INFERIOR / MODO SOLO */}
+        <div className={totalParticipantes === 1 ? "video-solo" : "area-inferior"} style={totalParticipantes === 1 ? { width: "100%", height: "100%" } : {}}>
+          {inferiorUids.map((uid) => renderVideoCard(uid, totalParticipantes === 1 ? "solo" : "inferior"))}
         </div>
-
-        {/* MODO SOLO */}
-        {totalParticipantes === 1 && (
-          <div className="video-solo" style={{ width: "100%", height: "100%" }}>
-            {renderVideoCard("local", "solo")}
-          </div>
-        )}
       </main>
 
       {/* Emojis Flutuantes */}
@@ -456,7 +455,7 @@ export default function Room() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-[90px] left-1/2 -translate-x-1/2 bg-[#2c2f33] rounded-2xl p-3 flex gap-3 shadow-2xl z-50 border border-white/10"
+            className="fixed bottom-[90px] right-4 bg-[#2c2f33] rounded-2xl p-3 flex gap-3 shadow-2xl z-[150] border border-white/10"
           >
             <button
               className="flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition"
@@ -507,19 +506,6 @@ export default function Room() {
           {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
         </button>
 
-        {/* Menu "Mais opções" para mobile */}
-        <button
-          className={`btn-controle md:hidden ${showMoreMenu ? "bg-white/20" : ""}`}
-          onClick={() => setShowMoreMenu(!showMoreMenu)}
-          title="Mais opções"
-        >
-          <div className="flex gap-1">
-            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-          </div>
-        </button>
-
         {/* Botões extras visíveis apenas no Desktop */}
         <div className="hidden md:flex gap-3">
           <button
@@ -564,6 +550,19 @@ export default function Room() {
           <span className="bg-blue-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
             {totalParticipantes}
           </span>
+        </button>
+
+        {/* Menu "Mais opções" para mobile (Agrupado lado direito) */}
+        <button
+          className={`btn-controle md:hidden ${showMoreMenu ? "bg-white/20" : ""}`}
+          onClick={() => setShowMoreMenu(!showMoreMenu)}
+          title="Mais opções"
+        >
+          <div className="flex gap-1">
+            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+          </div>
         </button>
       </div>
 
