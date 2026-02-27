@@ -49,17 +49,16 @@ export default function Room() {
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const localVideoTrackRef = useRef<ICameraVideoTrack | null>(null);
   const localAudioTrackRef = useRef<IMicrophoneAudioTrack | null>(null);
-  const localVideoElRef = useRef<HTMLDivElement>(null);
+  const localVideoElRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   // Map uid -> name
   const uidNameMap = useRef<Map<string | number, string>>(new Map());
 
-  // Estados DevocionalMeet (Carrossel, Mão, Speakers)
+  // Estados DevocionalMeet (Mão, Speakers)
   const [maoLevantada, setMaoLevantada] = useState(false);
   const [maosRemotas, setMaosRemotas] = useState<{ id: string | number; timestamp: number }[]>([]);
   const [activeSpeakers, setActiveSpeakers] = useState<Set<string | number>>(new Set());
   const [speakerHistory, setSpeakerHistory] = useState<(string | number)[]>([]);
-  const carouselRef = useRef<HTMLDivElement>(null);
   const localUidRef = useRef<string | number | null>(null);
 
   const totalParticipantes = remoteUsers.length + 1;
@@ -330,17 +329,9 @@ export default function Room() {
     }
   };
 
-  const scrollCarousel = (direction: number) => {
-    if (carouselRef.current) {
-      const scrollAmount = carouselRef.current.clientWidth / 2;
-      carouselRef.current.scrollBy({ left: direction * scrollAmount, behavior: "smooth" });
-    }
-  };
-
-  // Lógica de distribuição 6+3
-  const inferiorUids: (string | number)[] = [];
-  inferiorUids.push("local"); // O próprio usuário fica fixo na área inferior
-
+  // ────────────────────────────────────────────────────────
+  // ORDENAÇÃO E RENDERING (GRID)
+  // ────────────────────────────────────────────────────────
   const remoteCandidates = remoteUsers.map((u) => u.uid);
 
   // Ordena por mão levantada, depois por quem falou
@@ -360,10 +351,10 @@ export default function Room() {
     return 0; // ordem original
   });
 
-  inferiorUids.push(...remoteCandidates.slice(0, 2)); // Pega mais 2 (máximo 3 embaixo)
-  const superiorUids = remoteCandidates.slice(2); // Restante vai pro carrossel
+  const allUids = ["local", ...remoteCandidates];
+  const gridCountClass = totalParticipantes >= 7 ? "count-many" : `count-${totalParticipantes}`;
 
-  const renderVideoCard = (uid: string | number, position: "superior" | "inferior" | "solo") => {
+  const renderVideoCard = (uid: string | number) => {
     const isLocal = uid === "local";
     const remoteU = isLocal ? null : remoteUsers.find((u) => u.uid === uid);
     if (!isLocal && !remoteU) return null;
@@ -373,9 +364,9 @@ export default function Room() {
     const hand = isLocal ? maoLevantada : maosRemotas.some((m) => m.id === uid);
     const isSpeaking = activeSpeakers.has(uid);
 
-    let cardClass = position === "inferior" ? "video-card-fixo" : position === "superior" ? "video-card" : "";
+    let cardClass = "video-item";
     if (isSpeaking) cardClass += " falando";
-    if (position === "inferior" && isHost && isLocal) cardClass += " moderador";
+    if (isHost && isLocal) cardClass += " moderador";
 
     return (
       <div key={uid} className={cardClass}>
@@ -404,35 +395,15 @@ export default function Room() {
   };
 
   return (
-    <div className="sala-container">
+    <div className="sala-container" style={{ background: "#202124" }}>
       {/* Contador */}
-      <div className="contador-participantes">
+      <div className="contador-participantes fixed top-4 left-4 z-50 bg-black/60 text-white px-3 py-1.5 rounded-full text-xs font-semibold backdrop-blur-md flex items-center gap-1.5">
         👥 {totalParticipantes} participante{totalParticipantes > 1 ? "s" : ""}
       </div>
 
-      {/* Grid de vídeos no novo Layout Carrossel */}
-      <main className={`app-container ${totalParticipantes === 1 ? "modo-solo" : ""} ${superiorUids.length === 0 ? "sem-carrossel" : "com-carrossel"}`}>
-        {/* AREA SUPERIOR */}
-        <div className="area-superior" style={{ display: superiorUids.length === 0 ? "none" : "flex" }}>
-          <div className="carrossel-wrapper">
-            {superiorUids.length > 0 && <button className="seta-navegacao seta-esquerda" onClick={() => scrollCarousel(-1)}>‹</button>}
-            <div className="carrossel-container" ref={carouselRef}>
-              {superiorUids.map((uid) => renderVideoCard(uid, "superior"))}
-            </div>
-            {superiorUids.length > 0 && <button className="seta-navegacao seta-direita" onClick={() => scrollCarousel(1)}>›</button>}
-          </div>
-
-          <div className="indicador-carousel">
-            {superiorUids.map((_, i) => (
-              <div key={i} className="dot" />
-            ))}
-          </div>
-        </div>
-
-        {/* AREA INFERIOR / MODO SOLO */}
-        <div className={totalParticipantes === 1 ? "video-solo" : "area-inferior"} style={totalParticipantes === 1 ? { width: "100%", height: "100%" } : {}}>
-          {inferiorUids.map((uid) => renderVideoCard(uid, totalParticipantes === 1 ? "solo" : "inferior"))}
-        </div>
+      {/* Grid de vídeos no novo Layout Adaptativo */}
+      <main className={`video-grid ${gridCountClass}`}>
+        {allUids.map((uid) => renderVideoCard(uid))}
       </main>
 
       {/* Emojis Flutuantes */}
