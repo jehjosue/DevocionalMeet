@@ -649,17 +649,54 @@ body {
   box-sizing: border-box;
 }
 
-/* ── 1 pessoa: fullscreen ── */
+/* ── CORREÇÃO: 1 pessoa fullscreen sem barra cinza ── */
+
 .video-grid.count-1 {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr;
   padding: 0;
   gap: 0;
+  width: 100vw;
+  height: 100dvh;
 }
 
 .video-grid.count-1 .video-item {
   border-radius: 0;
+  width: 100vw !important;
   height: calc(100dvh - 90px) !important;
+  background: #202124;
+  overflow: hidden;
+}
+
+/* Força o container do Agora a preencher tudo */
+.video-grid.count-1 .video-item>div,
+.video-grid.count-1 .video-item .video-local,
+.video-grid.count-1 .video-item .video-remoto {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* Força o elemento video a cobrir tudo */
+.video-grid.count-1 .video-item video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+/* Espelho local sem quebrar o tamanho */
+.video-grid.count-1 .video-item .video-local {
+  transform: scaleX(-1) !important;
+}
+
+.video-grid.count-1 .video-item .video-local>div,
+.video-grid.count-1 .video-item .video-local video {
+  transform: none !important;
 }
 
 /* ── 2 pessoas: lado a lado (portrait no mobile) ── */
