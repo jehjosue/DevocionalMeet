@@ -33,6 +33,7 @@ export default function Room() {
   const [messages, setMessages] = useState<{ id: string; sender: string; text: string; time: string }[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [activeTab, setActiveTab] = useState<"people" | "chat">("people");
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const userName =
     searchParams.get("nome") ||
@@ -427,7 +428,7 @@ export default function Room() {
 
         {/* MODO SOLO */}
         {totalParticipantes === 1 && (
-          <div className="video-solo">
+          <div className="video-solo" style={{ width: "100%", height: "100%" }}>
             {renderVideoCard("local", "solo")}
           </div>
         )}
@@ -438,13 +439,53 @@ export default function Room() {
         <div
           key={item.id}
           className="emoji-flutuante text-3xl md:text-4xl filter drop-shadow-md"
-          style={{ left: `${item.left}%`, bottom: "80px" }}
+          style={{ left: `${item.left}%`, bottom: "100px" }}
         >
           {item.emoji}
         </div>
       ))}
 
-      {/* Controles */}
+      {/* OVERFLOW MENU (Telas Menores) */}
+      <AnimatePresence>
+        {showMoreMenu && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-[90px] left-1/2 -translate-x-1/2 bg-[#2c2f33] rounded-2xl p-3 flex gap-3 shadow-2xl z-50 border border-white/10"
+          >
+            <button
+              className="flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition"
+              onClick={() => { enviarReacaoAleatoria(); setShowMoreMenu(false); }}
+            >
+              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-xl">
+                ❤️
+              </div>
+              <span className="text-[10px]">Reagir</span>
+            </button>
+            <button
+              className={`flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition ${maoLevantada ? "text-yellow-400" : ""}`}
+              onClick={() => { toggleMao(); setShowMoreMenu(false); }}
+            >
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl ${maoLevantada ? "bg-yellow-500/20" : "bg-white/5"}`}>
+                🙋
+              </div>
+              <span className="text-[10px]">Mão</span>
+            </button>
+            <button
+              className="flex flex-col items-center gap-1 text-white p-2 rounded-xl hover:bg-white/10 transition"
+              onClick={() => { copyLink(); setShowMoreMenu(false); }}
+            >
+              <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-xl">
+                <Copy size={20} />
+              </div>
+              <span className="text-[10px]">Link</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Controles Principais */}
       <div className={`controles-container ${totalParticipantes === 1 ? "controles-overlay" : ""}`}>
         <button
           className={`btn-controle ${!micOn ? "btn-desligar" : ""}`}
@@ -462,36 +503,52 @@ export default function Room() {
           {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
         </button>
 
+        {/* Menu "Mais opções" para mobile */}
         <button
-          className="btn-controle"
-          onClick={copyLink}
-          title="Copiar link de convite"
+          className={`btn-controle md:hidden ${showMoreMenu ? "bg-white/20" : ""}`}
+          onClick={() => setShowMoreMenu(!showMoreMenu)}
+          title="Mais opções"
         >
-          {copied ? <span className="text-sm font-bold">✓</span> : <Copy size={22} />}
+          <div className="flex gap-1">
+            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+            <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
+          </div>
         </button>
 
+        {/* Botões extras visíveis apenas no Desktop */}
+        <div className="hidden md:flex gap-3">
+          <button
+            className="btn-controle"
+            onClick={copyLink}
+            title="Copiar link de convite"
+          >
+            {copied ? <span className="text-sm font-bold">✓</span> : <Copy size={22} />}
+          </button>
+
+          <button
+            className="btn-controle"
+            onClick={enviarReacaoAleatoria}
+            title="Enviar Reação"
+          >
+            <Heart size={24} className="text-pink-400" />
+          </button>
+
+          <button
+            className={`btn-controle btn-mao ${maoLevantada ? "ativo" : ""}`}
+            onClick={toggleMao}
+            title="Levantar a mão"
+          >
+            🙋
+          </button>
+        </div>
+
         <button
-          className="btn-controle btn-desligar w-[72px] rounded-[50px]"
+          className="btn-controle btn-desligar w-[64px] rounded-[50px] mx-1 md:w-[72px]"
           onClick={() => navigate("/")}
           title="Sair da Reunião"
         >
-          <LogOut size={24} />
-        </button>
-
-        <button
-          className="btn-controle"
-          onClick={enviarReacaoAleatoria}
-          title="Enviar Reação"
-        >
-          <Heart size={24} className="text-pink-400" />
-        </button>
-
-        <button
-          className={`btn-controle btn-mao ${maoLevantada ? "ativo" : ""}`}
-          onClick={toggleMao}
-          title="Levantar a mão"
-        >
-          🙋
+          <LogOut size={22} />
         </button>
 
         <button
