@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, MessageSquare, X } from "lucide-react";
+import { Copy, LogOut, Shield, Mic, MicOff, Video, VideoOff, Users, MessageSquare, X, Heart } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import AgoraRTC, {
   IAgoraRTCClient,
@@ -41,6 +41,10 @@ export default function Room() {
   const role = searchParams.get("role") || "audience";
   const isHost = role === "host";
 
+  // Emojis Flutuantes Constantes
+  const DEVOCIONAL_EMOJIS = ["✝️", "🙏", "✨", "🕊️", "📖"];
+  const [activeEmojis, setActiveEmojis] = useState<{ id: string; emoji: string; left: number }[]>([]);
+
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const localVideoTrackRef = useRef<ICameraVideoTrack | null>(null);
   const localAudioTrackRef = useRef<IMicrophoneAudioTrack | null>(null);
@@ -49,19 +53,15 @@ export default function Room() {
   // Map uid -> name
   const uidNameMap = useRef<Map<string | number, string>>(new Map());
 
-  // Paginação
-  const VIDEOS_POR_PAGINA = 9;
-  const [paginaAtual, setPaginaAtual] = useState(0);
-  const totalParticipantes = remoteUsers.length + 1;
-  const gridCount = totalParticipantes <= 9 ? String(totalParticipantes) : "many";
-  const totalPaginas = Math.ceil(totalParticipantes / VIDEOS_POR_PAGINA);
-  const inicioVisivel = paginaAtual * VIDEOS_POR_PAGINA;
-  const fimVisivel = inicioVisivel + VIDEOS_POR_PAGINA;
-  const isVisivel = (index: number) => index >= inicioVisivel && index < fimVisivel;
+  // Estados DevocionalMeet (Carrossel, Mão, Speakers)
+  const [maoLevantada, setMaoLevantada] = useState(false);
+  const [maosRemotas, setMaosRemotas] = useState<{ id: string | number; timestamp: number }[]>([]);
+  const [activeSpeakers, setActiveSpeakers] = useState<Set<string | number>>(new Set());
+  const [speakerHistory, setSpeakerHistory] = useState<(string | number)[]>([]);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const localUidRef = useRef<string | number | null>(null);
 
-  useEffect(() => {
-    if (paginaAtual >= totalPaginas && totalPaginas > 0) setPaginaAtual(totalPaginas - 1);
-  }, [totalPaginas, paginaAtual]);
+  const totalParticipantes = remoteUsers.length + 1;
 
   useEffect(() => {
     if (!roomName) return;
@@ -76,6 +76,23 @@ export default function Room() {
 
     socket.on("chat_message", (payload) => {
       setMessages((prev) => [...prev, payload]);
+    });
+
+    socket.on("reaction", (emoji: string) => {
+      adicionarEmoji(emoji);
+    });
+
+    socket.on("raise_hand", (data: { uid: string | number; isRaised: boolean; timestamp: number }) => {
+      setMaosRemotas((prev) => {
+        if (data.isRaised) {
+          if (!prev.find((m) => m.id === data.uid)) {
+            return [...prev, { id: data.uid, timestamp: data.timestamp }];
+          }
+          return prev;
+        } else {
+          return prev.filter((m) => m.id !== data.uid);
+        }
+      });
     });
 
     // Agora RTC
@@ -133,6 +150,8 @@ export default function Room() {
     client.on("user-left", (user) => {
       setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
       uidNameMap.current.delete(user.uid);
+      setSpeakerHistory((prev) => prev.filter((id) => id !== user.uid));
+      setMaosRemotas((prev) => prev.filter((m) => m.id !== user.uid));
     });
 
     // Recebe nomes via socket
@@ -149,6 +168,30 @@ export default function Room() {
       }, 15000);
 
       try {
+        client.enableAudioVolumeIndicator();
+        client.on("volume-indicator", (volumes) => {
+          const speakingUids = new Set<string | number>();
+          volumes.forEach((v) => {
+            if (v.level > 5) {
+              const uid = v.uid === 0 ? "local" : v.uid;
+              speakingUids.add(uid);
+            }
+          });
+          setActiveSpeakers(speakingUids);
+
+          if (speakingUids.size > 0) {
+            setSpeakerHistory((prev) => {
+              const newHist = [...prev];
+              speakingUids.forEach((suid) => {
+                const idx = newHist.indexOf(suid);
+                if (idx !== -1) newHist.splice(idx, 1);
+                newHist.unshift(suid);
+              });
+              return newHist.slice(0, 20); // guarda os últimos 20 que falaram
+            });
+          }
+        });
+
         // Cria tracks locais
         const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
         localAudioTrackRef.current = audioTrack;
@@ -161,6 +204,7 @@ export default function Room() {
 
         // Gera UID numérico único
         const uid = Math.floor(Math.random() * 100000);
+        localUidRef.current = uid;
 
         // Log do canal para diagnóstico
         console.log("[Agora] Entrando no canal:", roomName, "| UID:", uid, "| AppID:", AGORA_APP_ID);
@@ -247,6 +291,109 @@ export default function Room() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const adicionarEmoji = useCallback((emoji: string) => {
+    const id = Math.random().toString(36).substr(2, 9);
+    // Posição horizontal aleatória entre 10% e 90% da tela para não cortar nas bordas
+    const left = 10 + Math.random() * 80;
+
+    setActiveEmojis((prev) => [...prev, { id, emoji, left }]);
+
+    // Remove o emoji após a animação (4 segundos)
+    setTimeout(() => {
+      setActiveEmojis((prev) => prev.filter((e) => e.id !== id));
+    }, 4000);
+  }, []);
+
+  const enviarReacaoAleatoria = () => {
+    const emoji = DEVOCIONAL_EMOJIS[Math.floor(Math.random() * DEVOCIONAL_EMOJIS.length)];
+    adicionarEmoji(emoji);
+    if (socketRef.current) {
+      socketRef.current.emit("reaction", emoji);
+    }
+  };
+
+  const toggleMao = () => {
+    const newState = !maoLevantada;
+    setMaoLevantada(newState);
+    if (socketRef.current && localUidRef.current) {
+      socketRef.current.emit("raise_hand", {
+        uid: localUidRef.current,
+        isRaised: newState,
+        timestamp: Date.now()
+      });
+    }
+  };
+
+  const scrollCarousel = (direction: number) => {
+    if (carouselRef.current) {
+      const scrollAmount = carouselRef.current.clientWidth / 2;
+      carouselRef.current.scrollBy({ left: direction * scrollAmount, behavior: "smooth" });
+    }
+  };
+
+  // Lógica de distribuição 6+3
+  const inferiorUids: (string | number)[] = [];
+  inferiorUids.push("local"); // O próprio usuário fica fixo na área inferior
+
+  const remoteCandidates = remoteUsers.map((u) => u.uid);
+
+  // Ordena por mão levantada, depois por quem falou
+  remoteCandidates.sort((a, b) => {
+    const aHand = maosRemotas.find((m) => m.id === a);
+    const bHand = maosRemotas.find((m) => m.id === b);
+    if (aHand && !bHand) return -1;
+    if (!aHand && bHand) return 1;
+    if (aHand && bHand) return bHand.timestamp - aHand.timestamp;
+
+    const aSpeakIdx = speakerHistory.indexOf(a);
+    const bSpeakIdx = speakerHistory.indexOf(b);
+    if (aSpeakIdx !== -1 && bSpeakIdx === -1) return -1;
+    if (aSpeakIdx === -1 && bSpeakIdx !== -1) return 1;
+    if (aSpeakIdx !== -1 && bSpeakIdx !== -1) return aSpeakIdx - bSpeakIdx;
+
+    return 0; // ordem original
+  });
+
+  inferiorUids.push(...remoteCandidates.slice(0, 2)); // Pega mais 2 (máximo 3 embaixo)
+  const superiorUids = remoteCandidates.slice(2); // Restante vai pro carrossel
+
+  const renderVideoCard = (uid: string | number, position: "superior" | "inferior" | "solo") => {
+    const isLocal = uid === "local";
+    const remoteU = isLocal ? null : remoteUsers.find((u) => u.uid === uid);
+    if (!isLocal && !remoteU) return null;
+
+    const _name = isLocal ? `${userName} (Você) ${isHost ? "👑" : ""}` : remoteU?.name || "Participante";
+    const _micOff = isLocal ? !micOn : false;
+    const hand = isLocal ? maoLevantada : maosRemotas.some((m) => m.id === uid);
+    const isSpeaking = activeSpeakers.has(uid);
+
+    let cardClass = position === "inferior" ? "video-card-fixo" : position === "superior" ? "video-card" : "";
+    if (isSpeaking) cardClass += " falando";
+    if (position === "inferior" && isHost && isLocal) cardClass += " moderador";
+
+    return (
+      <div key={uid} className={cardClass}>
+        <div
+          id={isLocal ? "video-local-container" : `video-remote-${uid}`}
+          className={isLocal ? "video-local" : "video-remoto"}
+          style={{ width: "100%", height: "100%" }}
+          ref={(el) => {
+            if (isLocal) {
+              if (el && localVideoTrackRef.current) localVideoTrackRef.current.play(el);
+              localVideoElRef.current = el; // mantém atualizado
+            } else {
+              if (el && remoteU?.videoTrack) remoteU.videoTrack.play(el);
+            }
+          }}
+        />
+        <div className="tile-label">
+          {_name} {_micOff && "🔇"}
+        </div>
+        {hand && <div className="icone-mao">🙋</div>}
+      </div>
+    );
+  };
+
   return (
     <div className="sala-container">
       {/* Contador */}
@@ -254,124 +401,106 @@ export default function Room() {
         👥 {totalParticipantes} participante{totalParticipantes > 1 ? "s" : ""}
       </div>
 
-      {/* Paginação */}
-      {totalParticipantes > VIDEOS_POR_PAGINA && (
-        <div className="paginacao-bar">
-          <button onClick={() => setPaginaAtual((p) => Math.max(0, p - 1))}>‹</button>
-          <span className="pag-info">
-            Página {paginaAtual + 1} de {totalPaginas}
-          </span>
-          <button onClick={() => setPaginaAtual((p) => Math.min(totalPaginas - 1, p + 1))}>›</button>
-        </div>
-      )}
+      {/* Grid de vídeos no novo Layout Carrossel */}
+      <main className={`app-container ${totalParticipantes === 1 ? "modo-solo" : ""}`}>
+        {/* AREA SUPERIOR */}
+        <div className="area-superior" style={{ display: totalParticipantes === 1 ? "none" : "flex" }}>
+          <div className="carrossel-wrapper">
+            {superiorUids.length > 0 && <button className="seta-navegacao seta-esquerda" onClick={() => scrollCarousel(-1)}>‹</button>}
+            <div className="carrossel-container" ref={carouselRef}>
+              {superiorUids.map((uid) => renderVideoCard(uid, "superior"))}
+            </div>
+            {superiorUids.length > 0 && <button className="seta-navegacao seta-direita" onClick={() => scrollCarousel(1)}>›</button>}
+          </div>
 
-      {/* Info topo */}
-      <div className="absolute top-0 right-0 p-3 z-10 pointer-events-none">
-        <div className="flex items-center gap-2 text-xs bg-black/50 px-3 py-1.5 rounded-xl backdrop-blur-md pointer-events-auto text-white">
-          <span className="opacity-70 truncate max-w-[120px]">{roomName}</span>
-          <span className="opacity-30">|</span>
-          <span className="opacity-80">
-            {new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        </div>
-      </div>
-
-      {/* Loading */}
-      {!joined && !connectionError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-10 gap-4 bg-black">
-          <div className="w-10 h-10 border-4 border-white/10 border-t-blue-500 rounded-full animate-spin" />
-          <p className="text-sm opacity-70">Conectando câmera e microfone...</p>
-        </div>
-      )}
-
-      {/* Erro */}
-      {connectionError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white z-50 bg-black/90 p-6 text-center">
-          <Shield size={48} className="text-red-500 mb-4" />
-          <h3 className="text-xl font-bold mb-2">Falha na Conexão</h3>
-          <p className="text-white/70 mb-6 text-sm">{connectionError}</p>
-          <button
-            onClick={() => navigate("/")}
-            className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-xl font-semibold"
-          >
-            Voltar para o Início
-          </button>
-        </div>
-      )}
-
-      {/* Grid de vídeos */}
-      <main className="videos-grid" data-count={gridCount}>
-        {/* Vídeo local */}
-        <div className="video-tile" style={{ display: isVisivel(0) ? "block" : "none" }}>
-          <div
-            ref={localVideoElRef}
-            style={{ width: "100%", height: "100%", transform: "scaleX(-1)" }}
-          />
-          <div className="tile-label">
-            {userName} (Você) {isHost ? "👑" : ""} {!micOn && "🔇"}
+          <div className="indicador-carousel">
+            {superiorUids.map((_, i) => (
+              <div key={i} className="dot" />
+            ))}
           </div>
         </div>
 
-        {/* Vídeos remotos */}
-        {remoteUsers.map((remote, index) => (
-          <div
-            key={remote.uid}
-            className="video-tile"
-            style={{ display: isVisivel(index + 1) ? "block" : "none" }}
-          >
-            <div
-              id={`video-remote-${remote.uid}`}
-              style={{ width: "100%", height: "100%" }}
-              ref={(el) => {
-                if (el && remote.videoTrack) {
-                  remote.videoTrack.play(el);
-                }
-              }}
-            />
-            <div className="tile-label">{remote.name || "Participante"}</div>
+        {/* AREA INFERIOR */}
+        <div className="area-inferior" style={{ display: totalParticipantes === 1 ? "none" : "flex" }}>
+          {inferiorUids.map((uid) => renderVideoCard(uid, "inferior"))}
+        </div>
+
+        {/* MODO SOLO */}
+        {totalParticipantes === 1 && (
+          <div className="video-solo">
+            {renderVideoCard("local", "solo")}
           </div>
-        ))}
+        )}
       </main>
 
+      {/* Emojis Flutuantes */}
+      {activeEmojis.map((item) => (
+        <div
+          key={item.id}
+          className="emoji-flutuante text-3xl md:text-4xl filter drop-shadow-md"
+          style={{ left: `${item.left}%`, bottom: "80px" }}
+        >
+          {item.emoji}
+        </div>
+      ))}
+
       {/* Controles */}
-      <div className="controles-bar">
+      <div className={`controles-container ${totalParticipantes === 1 ? "controles-overlay" : ""}`}>
         <button
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors text-white ${!micOn ? "bg-red-500" : "bg-[#3c4043] hover:bg-[#4a4e51]"
-            }`}
+          className={`btn-controle ${!micOn ? "btn-desligar" : ""}`}
           onClick={toggleMic}
+          title={micOn ? "Desativar Microfone" : "Ativar Microfone"}
         >
-          {micOn ? <Mic size={22} /> : <MicOff size={22} />}
+          {micOn ? <Mic size={24} /> : <MicOff size={24} />}
         </button>
 
         <button
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors text-white ${!videoOn ? "bg-red-500" : "bg-[#3c4043] hover:bg-[#4a4e51]"
-            }`}
+          className={`btn-controle ${!videoOn ? "btn-desligar" : ""}`}
           onClick={toggleVideo}
+          title={videoOn ? "Desativar Câmera" : "Ativar Câmera"}
         >
-          {videoOn ? <Video size={22} /> : <VideoOff size={22} />}
+          {videoOn ? <Video size={24} /> : <VideoOff size={24} />}
         </button>
 
         <button
-          className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+          className="btn-controle"
           onClick={copyLink}
           title="Copiar link de convite"
         >
-          {copied ? <span className="text-xs font-bold">✓</span> : <Copy size={20} />}
+          {copied ? <span className="text-sm font-bold">✓</span> : <Copy size={22} />}
         </button>
 
         <button
-          className="w-16 h-12 rounded-3xl flex items-center justify-center bg-red-500 hover:bg-red-600 text-white transition-colors"
+          className="btn-controle btn-desligar w-[72px] rounded-[50px]"
           onClick={() => navigate("/")}
+          title="Sair da Reunião"
         >
-          <LogOut size={22} />
+          <LogOut size={24} />
         </button>
 
         <button
-          className="h-10 px-3 rounded-3xl flex items-center justify-center bg-transparent hover:bg-white/10 text-white transition-colors gap-2"
-          onClick={() => setShowSidebar(true)}
+          className="btn-controle"
+          onClick={enviarReacaoAleatoria}
+          title="Enviar Reação"
         >
-          <Users size={20} />
-          <span className="bg-blue-400 text-blue-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
+          <Heart size={24} className="text-pink-400" />
+        </button>
+
+        <button
+          className={`btn-controle btn-mao ${maoLevantada ? "ativo" : ""}`}
+          onClick={toggleMao}
+          title="Levantar a mão"
+        >
+          🙋
+        </button>
+
+        <button
+          className="btn-controle w-auto px-4 rounded-[50px] gap-2"
+          onClick={() => setShowSidebar(true)}
+          title="Participantes e Chat"
+        >
+          <Users size={22} />
+          <span className="bg-blue-500 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">
             {totalParticipantes}
           </span>
         </button>
