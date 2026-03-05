@@ -124,7 +124,7 @@ export default function Home() {
     // URL ABSOLUTA do back-end na VPS — front no Vercel, back em api.devocionalmeet.shop
     const API = 'https://api.devocionalmeet.shop';
     const endpoint = `${API}/rooms/create`;
-    console.log('[DM] Gerando link...', { endpoint, userId, name });
+    console.log('[DM v1.0.1 12:50] Gerando link...', { endpoint, userId, name });
     showToast('⏳ Conectando ao servidor...');
 
     try {
