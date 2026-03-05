@@ -150,6 +150,14 @@ async function startServer() {
       io.to(target).emit("chat_message", payload);
     });
 
+    socket.on('host:muteAll', ({ code, muted }) => {
+      socket.to(code).emit('room:mutedByHost', { muted, all: true });
+    });
+
+    socket.on('host:muteOne', ({ code, userId, muted }) => {
+      io.to(code).emit('room:mutedByHost', { userId, muted, all: false });
+    });
+
     socket.on("disconnect", () => {
       Object.keys(rooms).forEach(code => {
         const room = rooms[code];

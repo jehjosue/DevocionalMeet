@@ -15,14 +15,6 @@ function getUserId() {
   return userId;
 }
 
-function getLiderId(): string {
-  let liderId = localStorage.getItem("dmeet_liderId");
-  if (!liderId) {
-    liderId = "lider_" + Date.now() + "_" + crypto.randomUUID().slice(0, 8);
-    localStorage.setItem("dmeet_liderId", liderId);
-  }
-  return liderId;
-}
 
 function salvarNome(nome: string) {
   localStorage.setItem("dmeet_name", nome);
@@ -34,13 +26,10 @@ export default function Home() {
   const navigate = useNavigate();
   const isDark = theme === "dark";
 
-  const userId = getUserId();
-  const menuRef = useRef<HTMLDivElement>(null);
-  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const [showMenu, setShowMenu] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
 
-  // roomId vem sempre via ?roomId= (colocado pelo RoomGuard do App.tsx)
-  const roomIdDaUrl = searchParams.get("roomId") || "";
 
   // Se veio de convite, começa com nome vazio. Se não, carrega nome salvo.
   const nomeSalvo = (() => {
@@ -51,136 +40,149 @@ export default function Home() {
   const [userName, setUserName] = useState<string>(nomeSalvo);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [inputCode, setInputCode] = useState("");
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [toast, setToast] = useState('');
 
-  // Fechar menu ao clicar fora
+  const handleOpenMenu = () => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+    setShowMenu(p => !p);
+  };
+
+  function showToast(message: string, duration = 4000) {
+    const existing = document.getElementById('dmeet-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'dmeet-toast';
+    toast.innerText = message;
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,15,15,0.92);
+      color: white;
+      padding: 13px 24px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+      font-family: system-ui;
+      z-index: 99999;
+      white-space: nowrap;
+      max-width: 88vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      pointer-events: none;
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  }
+
+  // Fechar ao clicar fora
   useEffect(() => {
+    if (!showMenu) return;
     const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setIsMenuOpen(false);
+      const t = e.target as HTMLElement;
+      if (!t.closest('[data-menu]') && !t.closest('[data-menu-btn]')) {
+        setShowMenu(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+    const timer = setTimeout(() =>
+      document.addEventListener('mousedown', handler), 50);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handler);
+    };
+  }, [showMenu]);
 
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
-  };
-
-  const gerarRoomIdLider = (liderId: string) => {
-    const agora = new Date();
-    const data = agora.toISOString().slice(0, 10).replace(/-/g, "");
-    const hora =
-      agora.getHours().toString().padStart(2, "0") +
-      agora.getMinutes().toString().padStart(2, "0");
-    const rand = Math.floor(Math.random() * 900 + 100);
-    const sufixoLider = liderId.slice(-6);
-    return `devocional-${data}-${hora}-${rand}-${sufixoLider}`;
-  };
-
+  // Opção 1 — Gerar link sem entrar na sala
   const handleGenerateLink = async () => {
-    if (!userName.trim()) return;
-    setIsMenuOpen(false);
-    try {
-      showToast('⌛ Gerando link...');
+    setShowMenu(false);
 
-      const apiUrl = import.meta.env.VITE_SOCKET_URL || window.location.origin;
-      const res = await fetch(`${apiUrl}/rooms/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, userName }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Erro ao criar sala');
-      }
-
-      const data = await res.json();
-      const link = `${window.location.origin}/room/${data.code}`;
-      await navigator.clipboard.writeText(link);
-      showToast('🔗 Link copiado!');
-    } catch (err) {
-      console.error("Erro ao gerar link:", err);
-      showToast('❌ Erro ao gerar link. Tente novamente.');
+    let userId = localStorage.getItem('dmeet_userId');
+    if (!userId) {
+      userId = crypto.randomUUID();
+      localStorage.setItem('dmeet_userId', userId);
     }
-  };
 
-  const handleStartNow = async () => {
-    if (!userName.trim()) return;
-    setIsMenuOpen(false);
-
-    localStorage.setItem('dmeet_name', userName);
-    localStorage.setItem('dmeet_role', 'leader');
+    const name = userName;
+    const API = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
 
     try {
-      const res = await fetch('/rooms/create', {
+      const res = await fetch(`${API}/rooms/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, userName }),
+        body: JSON.stringify({ userId, userName: name }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
-      localStorage.setItem('dmeet_roomCode', data.code);
-      window.location.href = `/room/${data.code}?host=true`;
-    } catch (err) {
-      console.error("Erro ao criar sala:", err);
-      const liderId = getLiderId();
-      window.location.href = `/room/${gerarRoomIdLider(liderId)}?nome=${userName}&role=host&host=true`;
-    }
-  };
+      if (!res.ok) throw new Error(`Status ${res.status}`);
 
-  const handleSchedule = async () => {
-    if (!userName.trim()) return;
-    setIsMenuOpen(false);
-    try {
-      const res = await fetch('/rooms/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, userName }),
-      });
       const data = await res.json();
-      const link = `${window.location.origin}/room/${data.code}`;
-      const title = encodeURIComponent('DevocionalMeet - Reunião');
-      const details = encodeURIComponent(`Participe pelo link: ${link}`);
-      window.open(
-        `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}`,
-        '_blank'
-      );
+      if (!data.link) throw new Error('Link não retornado');
+
+      localStorage.setItem('dmeet_lastLink', data.link);
+
+      await navigator.clipboard.writeText(data.link).catch(() => { });
+      showToast('🔗 Link copiado: ' + data.link.replace('https://', ''));
+
     } catch (err) {
       console.error(err);
+      showToast('❌ Erro ao gerar link. Verifique sua conexão.');
     }
   };
 
-  const handleCreateRoom = async () => {
-    if (!userName.trim()) return;
+  // Opção 2 — Iniciar reunião agora (entrar direto)
+  const handleStartNow = async () => {
+    setShowMenu(false);
 
-    // Salvar nome e papel ANTES de redirecionar
-    localStorage.setItem('dmeet_name', userName);
-    localStorage.setItem('dmeet_role', 'leader');
+    const name = userName;
+    if (!name.trim()) {
+      showToast('⚠️ Digite seu nome antes de iniciar');
+      return;
+    }
+
+    let userId = localStorage.getItem('dmeet_userId');
+    if (!userId) {
+      userId = crypto.randomUUID();
+      localStorage.setItem('dmeet_userId', userId);
+    }
+
+    const API = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
 
     try {
-      const res = await fetch('/rooms/create', {
+      const res = await fetch(`${API}/rooms/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, userName }),
+        body: JSON.stringify({ userId, userName: name.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
 
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+
+      const data = await res.json();
+      if (!data.code) throw new Error('Código não retornado');
+
+      localStorage.setItem('dmeet_name', name.trim());
+      localStorage.setItem('dmeet_role', 'leader');
       localStorage.setItem('dmeet_roomCode', data.code);
+
       window.location.href = `/room/${data.code}?host=true`;
+
     } catch (err) {
-      console.error("Erro ao criar sala:", err);
-      // Fallback para sala legada se necessário
-      const liderId = getLiderId();
-      window.location.href = `/room/${gerarRoomIdLider(liderId)}?nome=${userName}&role=host&host=true`;
+      console.error(err);
+      showToast('❌ Erro ao criar sala. Tente novamente.');
     }
   };
+
 
   const handleJoinWithCode = () => {
     if (!userName.trim()) return;
@@ -314,7 +316,10 @@ export default function Home() {
               type="text"
               placeholder="Como você quer aparecer"
               value={userName}
-              onChange={(e) => setUserName(e.target.value)}
+              onChange={(e) => {
+                setUserName(e.target.value);
+                salvarNome(e.target.value);
+              }}
               className="w-full rounded-xl px-4 py-4 text-base border-2 transition-all outline-none"
               style={{
                 background: isDark ? "#1C1C2E" : "#fff",
@@ -331,127 +336,162 @@ export default function Home() {
             display: 'flex',
             flexDirection: 'row',
             alignItems: 'center',
-            gap: '12px',
+            gap: '10px',
             width: '100%',
-            position: 'relative'
+            marginTop: '16px',
           }}>
 
-            {/* BOTÃO NOVA REUNIÃO */}
-            <div style={{ flex: 1, position: 'relative' }}>
-              <button
-                ref={menuBtnRef}
-                onClick={(e) => {
-                  if (!userName.trim()) return;
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  setMenuPos({ top: rect.bottom + 8, left: rect.left, width: rect.width });
-                  setIsMenuOpen(!isMenuOpen);
-                }}
-                disabled={!userName.trim()}
-                style={{
-                  width: '100%',
-                  background: '#2563EB',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '999px',
-                  padding: '15px 0',
-                  fontSize: '0.97rem',
-                  fontWeight: '700',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  cursor: userName.trim() ? 'pointer' : 'not-allowed',
-                  transition: 'all 0.15s ease',
-                  opacity: userName.trim() ? 1 : 0.6,
-                }}
-                onMouseEnter={e => { if (userName.trim()) e.currentTarget.style.background = '#1D4ED8' }}
-                onMouseLeave={e => { if (userName.trim()) e.currentTarget.style.background = '#2563EB' }}
-                onPointerDown={e => { if (userName.trim()) e.currentTarget.style.transform = 'scale(0.96)' }}
-                onPointerUp={e => { if (userName.trim()) e.currentTarget.style.transform = 'scale(1)' }}
-              >
-                Nova reunião
-              </button>
-
-              {/* Portal para o Dropdown */}
-              {isMenuOpen && createPortal(
-                <motion.div
-                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                  transition={{ duration: 0.15 }}
-                  style={{
-                    position: 'fixed',
-                    top: menuPos.top,
-                    left: menuPos.left,
-                    width: menuPos.width,
-                    minWidth: '280px',
-                    zIndex: 9999,
-                    background: isDark ? '#1C1C2E' : '#ffffff',
-                    borderRadius: '16px',
-                    boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.6)' : '0 8px 32px rgba(0,0,0,0.12)',
-                    border: isDark ? '1px solid #2A2A3E' : '1px solid #E2E8F0',
-                    overflow: 'hidden'
-                  }}
-                >
-                  <MenuItem
-                    label={"Gerar um link da reunião\npara compartilhar"}
-                    icon={<LinkIcon color={isDark ? "#fff" : "#101828"} />}
-                    onClick={handleGenerateLink}
-                    isDark={isDark}
-                    border
-                  />
-                  <MenuItem
-                    label="Iniciar uma reunião agora"
-                    icon={<VideoIcon color={isDark ? "#fff" : "#101828"} />}
-                    onClick={handleStartNow}
-                    isDark={isDark}
-                    border
-                  />
-                  <MenuItem
-                    label={"Agendar no\nGoogle Agenda"}
-                    icon={<CalendarIcon color={isDark ? "#fff" : "#101828"} />}
-                    onClick={handleSchedule}
-                    isDark={isDark}
-                    border={false}
-                  />
-                </motion.div>,
-                document.body
-              )}
-            </div>
-
-            {/* BOTÃO PARTICIPAR COM CÓDIGO */}
+            {/* Nova reunião */}
             <button
-              onClick={handleJoinWithCode}
-              disabled={!userName.trim()}
+              ref={btnRef}
+              data-menu-btn="true"
+              onClick={handleOpenMenu}
               style={{
                 flex: 1,
-                background: isDark ? '#1C1C2E' : '#ffffff',
-                color: isDark ? '#ffffff' : '#101828',
-                border: isDark ? '1.5px solid #2A2A3E' : '1.5px solid #E2E8F0',
+                background: '#2563EB',
+                color: '#ffffff',
+                border: 'none',
                 borderRadius: '999px',
                 padding: '15px 0',
                 fontSize: '0.97rem',
-                fontWeight: '600',
+                fontWeight: '700',
                 fontFamily: 'system-ui, -apple-system, sans-serif',
-                cursor: userName.trim() ? 'pointer' : 'not-allowed',
+                cursor: 'pointer',
+                transition: 'background 0.15s ease',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#1D4ED8'}
+              onMouseLeave={e => e.currentTarget.style.background = '#2563EB'}
+            >
+              Nova reunião
+            </button>
+
+            {/* Participar com código */}
+            <button
+              onClick={() => setShowCodeModal(true)}
+              style={{
+                flex: 1,
+                background: '#ffffff',
+                color: '#1a1a1a',
+                border: '1.5px solid #D1D5DB',
+                borderRadius: '999px',
+                padding: '15px 0',
+                fontSize: '0.97rem',
+                fontWeight: '500',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                cursor: 'pointer',
                 transition: 'all 0.15s ease',
-                opacity: userName.trim() ? 1 : 0.6,
               }}
               onMouseEnter={e => {
-                if (userName.trim()) {
-                  e.currentTarget.style.borderColor = isDark ? '#3A3A4E' : '#D1D5DB';
-                  e.currentTarget.style.background = isDark ? '#23233A' : '#F9FAFB';
-                }
+                e.currentTarget.style.borderColor = '#9CA3AF'
+                e.currentTarget.style.background = '#F9FAFB'
               }}
               onMouseLeave={e => {
-                if (userName.trim()) {
-                  e.currentTarget.style.borderColor = isDark ? '#2A2A3E' : '#E2E8F0';
-                  e.currentTarget.style.background = isDark ? '#1C1C2E' : '#ffffff';
-                }
+                e.currentTarget.style.borderColor = '#D1D5DB'
+                e.currentTarget.style.background = '#ffffff'
               }}
-              onPointerDown={e => { if (userName.trim()) e.currentTarget.style.transform = 'scale(0.96)' }}
-              onPointerUp={e => { if (userName.trim()) e.currentTarget.style.transform = 'scale(1)' }}
             >
               Participar com código
             </button>
+
           </div>
+
+          {/* DROPDOWN VIA PORTAL — 2 OPÇÕES APENAS */}
+          {showMenu && createPortal(
+            <div
+              data-menu="true"
+              style={{
+                position: 'absolute',
+                top: `${menuPos.top}px`,
+                left: `${menuPos.left}px`,
+                width: `${menuPos.width}px`,
+                zIndex: 99999,
+                background: '#ffffff',
+                borderRadius: '16px',
+                overflow: 'hidden',
+                boxShadow: '0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.06)',
+                border: '1px solid #F0F0F0',
+                animation: 'menuAppear 0.18s ease',
+              }}
+            >
+
+              {/* ── OPÇÃO 1 ── Gerar link */}
+              <div
+                onClick={handleGenerateLink}
+                onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
+                onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '20px 20px',
+                  borderBottom: '1px solid #F0F0F0',
+                  cursor: 'pointer',
+                  background: '#ffffff',
+                  transition: 'background 0.12s ease',
+                }}
+              >
+                <span style={{
+                  color: '#1a1a1a',
+                  fontSize: '0.95rem',
+                  fontWeight: '400',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  lineHeight: '1.45',
+                  flex: 1,
+                  whiteSpace: 'pre-line',
+                  textAlign: 'left'
+                }}>
+                  {'Gerar um link da reunião\npara compartilhar'}
+                </span>
+                <svg width="22" height="22" viewBox="0 0 24 24"
+                  fill="none" stroke="#1a1a1a"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ marginLeft: '16px', flexShrink: 0 }}
+                >
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              </div>
+
+              {/* ── OPÇÃO 2 ── Iniciar agora */}
+              <div
+                onClick={handleStartNow}
+                onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
+                onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '20px 20px',
+                  cursor: 'pointer',
+                  background: '#ffffff',
+                  transition: 'background 0.12s ease',
+                  borderRadius: '0 0 16px 16px',
+                }}
+              >
+                <span style={{
+                  color: '#1a1a1a',
+                  fontSize: '0.95rem',
+                  fontWeight: '400',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  lineHeight: '1.45',
+                  flex: 1,
+                  textAlign: 'left'
+                }}>
+                  Iniciar uma reunião agora
+                </span>
+                <svg width="22" height="22" viewBox="0 0 24 24"
+                  fill="none" stroke="#1a1a1a"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ marginLeft: '16px', flexShrink: 0 }}
+                >
+                  <path d="M23 7l-7 5 7 5V7z" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                </svg>
+              </div>
+
+            </div>,
+            document.body
+          )}
         </div>
       </motion.div>
 
@@ -559,105 +599,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* Toast Notification */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, x: '-50%' }}
-            animate={{ opacity: 1, y: 0, x: '-50%' }}
-            exit={{ opacity: 0, y: 20, x: '-50%' }}
-            style={{
-              position: 'fixed',
-              bottom: '32px',
-              left: '50%',
-              background: 'rgba(0,0,0,0.85)',
-              backdropFilter: 'blur(12px)',
-              color: '#fff',
-              padding: '12px 24px',
-              borderRadius: '999px',
-              fontSize: '0.88rem',
-              fontFamily: 'system-ui',
-              zIndex: 9999,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
-function MenuItem({ label, icon, onClick, border, isDark }: { label: string; icon: React.ReactNode; onClick: () => void; border: boolean; isDark: boolean }) {
-  const [hovered, setHovered] = useState(false);
-  const textColor = isDark ? '#E9EDEF' : '#101828';
-  const borderColor = isDark ? '#2A2A3E' : '#F0F0F0';
-  const hoverBg = isDark ? 'rgba(255,255,255,0.06)' : '#F5F5F5';
-
-  return (
-    <div
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '18px 20px',
-        borderBottom: border ? `1px solid ${borderColor}` : 'none',
-        cursor: 'pointer',
-        background: hovered ? hoverBg : 'transparent',
-        transition: 'background 0.12s ease',
-      }}
-    >
-      <span style={{
-        color: textColor,
-        fontSize: '0.95rem',
-        fontWeight: '400',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        lineHeight: '1.45',
-        flex: 1,
-        whiteSpace: 'pre-line',
-        textAlign: 'left'
-      }}>
-        {label}
-      </span>
-      <div style={{ marginLeft: '16px', flexShrink: 0 }}>
-        {icon}
-      </div>
-    </div>
-  );
-}
-
-function LinkIcon({ color }: { color?: string }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-      stroke={color || "#1a1a1a"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-    </svg>
-  );
-}
-
-function VideoIcon({ color }: { color?: string }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-      stroke={color || "#1a1a1a"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M23 7l-7 5 7 5V7z" />
-      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-    </svg>
-  );
-}
-
-function CalendarIcon({ color }: { color?: string }) {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-      stroke={color || "#1a1a1a"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  );
-}

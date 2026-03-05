@@ -6,6 +6,7 @@ import AgoraRTC, {
   IMicrophoneAudioTrack,
 } from "agora-rtc-sdk-ng";
 import io, { Socket } from "socket.io-client";
+import { motion, AnimatePresence } from "motion/react";
 import { SOCKET_URL, AGORA_APP_ID } from "../config";
 import WaitingScreen from "../components/WaitingScreen";
 import Activities from "../components/Activities";
@@ -228,6 +229,9 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const [activitiesOpen, setActivitiesOpen] = useState(false);
   const [activeActivity, setActiveActivity] = useState<string | null>(null);
   const [participants, setParticipants] = useState<any[]>(initialParticipants || []);
+  const [showParticipants, setShowParticipants] = useState(false);
+  const [allMuted, setAllMuted] = useState(false);
+  const [mutedParticipants, setMutedParticipants] = useState<string[]>([]);
 
   // ── Refs ──
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -458,6 +462,17 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     navigate("/");
   };
 
+  const handleMuteAll = () => {
+    const next = !allMuted;
+    setAllMuted(next);
+    socketRef.current?.emit('host:muteAll', { code: roomName, muted: next });
+  };
+
+  const handleMuteOne = (targetUserId: string) => {
+    const isMuted = mutedParticipants.includes(targetUserId);
+    socketRef.current?.emit('host:muteOne', { code: roomName, userId: targetUserId, muted: !isMuted });
+  };
+
   // ── Tile ordering ──
   const sortedRemote = [...remoteUsers].sort((a, b) => {
     const aHand = maosRemotas.find(m => String(m.id) === String(a.uid));
@@ -508,6 +523,28 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
     socket.on('room:synced', ({ participants }: any) => {
       setParticipants(participants);
+    });
+
+    socket.on('room:mutedByHost', ({ muted, all, userId: targetUserId }: any) => {
+      if (all) {
+        setAllMuted(muted);
+        if (muted) {
+          localAudioTrackRef.current?.setEnabled(false);
+          setMicOn(false);
+        }
+      } else if (targetUserId === userId) {
+        if (muted) {
+          localAudioTrackRef.current?.setEnabled(false);
+          setMicOn(false);
+          setMutedParticipants(prev => prev.includes(userId) ? prev : [...prev, userId]);
+        } else {
+          setMutedParticipants(prev => prev.filter(id => id !== userId));
+        }
+      } else {
+        // Atualiza estado de outros participantes (opcional para UI)
+        if (muted) setMutedParticipants(prev => prev.includes(targetUserId) ? prev : [...prev, targetUserId]);
+        else setMutedParticipants(prev => prev.filter(id => id !== targetUserId));
+      }
     });
 
     socket.emit('room:join', { code: roomName, userId, userName });
@@ -771,16 +808,71 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
             <IconEmoji />
           </Btn>
 
+          {/* Participantes */}
+          <button
+            onClick={() => { setShowParticipants(p => !p); setShowMenu(false); setActivitiesOpen(false); }}
+            style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '14px',
+              background: showParticipants ? '#BBDEFB' : '#3A3A3C',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'all 0.18s ease',
+              position: 'relative',
+              flexShrink: 0
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24"
+              fill="none"
+              stroke={showParticipants ? '#1565C0' : '#ffffff'}
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+
+            {/* Badge com contagem de participantes */}
+            <div style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-4px',
+              minWidth: '18px',
+              height: '18px',
+              borderRadius: '999px',
+              background: '#2563EB',
+              color: '#fff',
+              fontSize: '0.65rem',
+              fontWeight: '700',
+              fontFamily: 'system-ui',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 4px',
+              border: '2px solid #2C2C2E'
+            }}>
+              {participants.length}
+            </div>
+          </button>
+
           {/* Menu / Atividades */}
           <Btn
             active={showMenu || activitiesOpen}
             activeBg="#4A4A4C"
             activeColor="#fff"
-            onClick={() => { setShowMenu(p => !p); setActivitiesOpen(false); }}
+            onClick={() => { setShowMenu(p => !p); setActivitiesOpen(false); setShowParticipants(false); }}
             title="Mais opções"
           >
             <IconDots />
           </Btn>
+
 
           {/* Separador */}
           <div style={{
@@ -798,6 +890,188 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
           >
             <span style={{ fontSize: "1.4rem" }}>✨</span>
           </Btn>
+
+          {/* PAINEL DE PARTICIPANTES */}
+          <AnimatePresence>
+            {showParticipants && (
+              <>
+                {/* Overlay para fechar ao clicar fora */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowParticipants(false)}
+                  style={{
+                    position: 'fixed',
+                    inset: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    zIndex: 199,
+                  }}
+                />
+
+                <motion.div
+                  initial={{ translateY: '100%' }}
+                  animate={{ translateY: 0 }}
+                  exit={{ translateY: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                  style={{
+                    position: 'fixed',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '75vh',
+                    background: '#1C1C1E',
+                    borderRadius: '24px 24px 0 0',
+                    zIndex: 200,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 -12px 48px rgba(0,0,0,0.6)',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {/* Handle de arrastar */}
+                  <div style={{
+                    width: '40px',
+                    height: '4px',
+                    background: 'rgba(255,255,255,0.2)',
+                    borderRadius: '999px',
+                    margin: '12px auto 6px',
+                    flexShrink: 0,
+                  }} />
+
+                  {/* Header do painel */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 20px 12px',
+                    borderBottom: '1px solid rgba(255,255,255,0.07)',
+                    flexShrink: 0,
+                  }}>
+                    <div>
+                      <span style={{
+                        color: '#fff',
+                        fontSize: '1.1rem',
+                        fontWeight: '700',
+                        fontFamily: 'system-ui',
+                      }}>
+                        Participantes
+                      </span>
+                      <span style={{
+                        color: 'rgba(255,255,255,0.4)',
+                        fontSize: '0.85rem',
+                        fontFamily: 'system-ui',
+                        marginLeft: '10px',
+                      }}>
+                        {participants.length}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setShowParticipants(false)}
+                      style={{
+                        background: 'rgba(255,255,255,0.08)',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '32px',
+                        height: '32px',
+                        color: '#fff',
+                        fontSize: '1rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'background 0.2s'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+                    >✕</button>
+                  </div>
+
+                  {/* BOTÃO "MUTAR TODOS" — APENAS PARA O HOST */}
+                  {isHost && (
+                    <div style={{
+                      padding: '16px 20px',
+                      borderBottom: '1px solid rgba(255,255,255,0.07)',
+                      flexShrink: 0,
+                    }}>
+                      <button
+                        onClick={handleMuteAll}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '10px',
+                          padding: '14px 20px',
+                          background: allMuted
+                            ? 'rgba(239, 68, 68, 0.12)'
+                            : 'rgba(37, 99, 235, 0.12)',
+                          border: allMuted
+                            ? '1.5px solid rgba(239, 68, 68, 0.4)'
+                            : '1.5px solid rgba(37, 99, 235, 0.4)',
+                          borderRadius: '16px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(0.99)'}
+                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24"
+                          fill="none"
+                          stroke={allMuted ? '#EF4444' : '#60A5FA'}
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                        >
+                          {allMuted ? (
+                            <>
+                              <line x1="1" y1="1" x2="23" y2="23" />
+                              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+                              <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" />
+                              <line x1="12" y1="19" x2="12" y2="23" />
+                            </>
+                          ) : (
+                            <>
+                              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                              <line x1="12" y1="19" x2="12" y2="23" />
+                            </>
+                          )}
+                        </svg>
+
+                        <span style={{
+                          color: allMuted ? '#EF4444' : '#60A5FA',
+                          fontSize: '0.95rem',
+                          fontWeight: '700',
+                          fontFamily: 'system-ui',
+                        }}>
+                          {allMuted ? 'Desmutar todos' : 'Mutar todos'}
+                        </span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* LISTA DE PARTICIPANTES */}
+                  <div style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '8px 0',
+                  }}>
+                    {participants.map((p) => (
+                      <ParticipantRow
+                        key={p.userId}
+                        participant={p}
+                        isLocal={p.userId === userId}
+                        isHost={p.userId === initialRoom?.hostId}
+                        isMutedByHost={mutedParticipants.includes(p.userId)}
+                        canMute={isHost && p.userId !== userId}
+                        onMuteOne={() => handleMuteOne(p.userId)}
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
           {/* Encerrar */}
           <button
@@ -999,6 +1273,140 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         />
       </div>
     </>
+  );
+}
+
+function ParticipantRow({
+  participant, isLocal, isHost, isMutedByHost, canMute, onMuteOne
+}: any) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '10px 20px',
+        gap: '12px',
+        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        transition: 'background 0.15s',
+      }}
+    >
+      {/* Avatar circular com inicial */}
+      <div style={{
+        width: '38px',
+        height: '38px',
+        borderRadius: '50%',
+        background: participant.color || '#2563EB',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        fontSize: '0.9rem',
+        fontWeight: '700',
+        fontFamily: 'system-ui',
+        flexShrink: 0,
+        position: 'relative',
+      }}>
+        {participant.userName?.[0]?.toUpperCase() || '?'}
+
+        {/* Coroa para o host */}
+        {isHost && (
+          <div style={{
+            position: 'absolute',
+            top: '-6px',
+            right: '-4px',
+            fontSize: '0.7rem',
+          }}>👑</div>
+        )}
+      </div>
+
+      {/* Nome */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          color: '#fff',
+          fontSize: '0.88rem',
+          fontWeight: '500',
+          fontFamily: 'system-ui',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {participant.userName}
+          {isLocal && (
+            <span style={{
+              color: 'rgba(255,255,255,0.4)',
+              fontSize: '0.75rem',
+              marginLeft: '6px',
+            }}>(você)</span>
+          )}
+        </div>
+        {isHost && (
+          <div style={{
+            color: '#60A5FA',
+            fontSize: '0.7rem',
+            fontFamily: 'system-ui',
+          }}>Líder</div>
+        )}
+        {isMutedByHost && (
+          <div style={{
+            color: '#EF4444',
+            fontSize: '0.7rem',
+            fontFamily: 'system-ui',
+          }}>Silenciado pelo líder</div>
+        )}
+      </div>
+
+      {/* Ícone mic status + botão mutar individual */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Indicador mic */}
+        <svg width="16" height="16" viewBox="0 0 24 24"
+          fill="none"
+          stroke={isMutedByHost || participant.isMuted
+            ? '#EF4444' : 'rgba(255,255,255,0.35)'}
+          strokeWidth="2.2"
+          strokeLinecap="round"
+        >
+          {isMutedByHost || participant.isMuted ? (
+            <>
+              <line x1="1" y1="1" x2="23" y2="23" />
+              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+              <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+            </>
+          ) : (
+            <>
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+              <line x1="12" y1="19" x2="12" y2="23" />
+            </>
+          )}
+        </svg>
+
+        {/* Botão mutar individual — só aparece no hover E só para o host */}
+        {canMute && hovered && (
+          <button
+            onClick={onMuteOne}
+            style={{
+              background: 'rgba(239,68,68,0.15)',
+              border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: '8px',
+              padding: '4px 10px',
+              color: '#EF4444',
+              fontSize: '0.7rem',
+              fontWeight: '600',
+              fontFamily: 'system-ui',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Mutar
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
