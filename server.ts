@@ -50,7 +50,8 @@ async function startServer() {
   app.use(express.json());
 
   // Rotas de Salas
-  app.post('/rooms/create', (req, res) => {
+  app.options('/rooms/create', cors());
+  app.post('/rooms/create', cors(), (req, res) => {
     const { userId, userName } = req.body;
     if (!userId || !userName) return res.status(400).json({ error: 'userId e userName obrigatórios' });
 
