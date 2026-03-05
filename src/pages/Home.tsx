@@ -121,8 +121,9 @@ export default function Home() {
       localStorage.setItem('dmeet_userId', userId);
     }
 
-    // URL RELATIVA — elimina CORS e problemas HTTP/HTTPS no Safari
-    const endpoint = '/rooms/create';
+    // URL ABSOLUTA do back-end na VPS — front no Vercel, back em api.devocionalmeet.shop
+    const API = (import.meta.env.VITE_SOCKET_URL as string || '').replace(/\/$/, '');
+    const endpoint = `${API}/rooms/create`;
     console.log('[DM] Gerando link...', { endpoint, userId, name });
     showToast('⏳ Conectando ao servidor...');
 
@@ -201,8 +202,9 @@ export default function Home() {
       localStorage.setItem('dmeet_userId', userId);
     }
 
-    // URL RELATIVA — elimina CORS e problemas HTTP/HTTPS no Safari
-    const endpoint = '/rooms/create';
+    // URL ABSOLUTA do back-end na VPS — front no Vercel, back em api.devocionalmeet.shop
+    const API = (import.meta.env.VITE_SOCKET_URL as string || '').replace(/\/$/, '');
+    const endpoint = `${API}/rooms/create`;
     console.log('[DM] Iniciando reunião...', { endpoint, userId, name });
     showToast('⏳ Criando sala...');
 

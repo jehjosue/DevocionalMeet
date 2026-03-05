@@ -1,18 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/rooms/(.*)",
-      "destination": "/api/rooms/$1"
-    },
-    {
-      "source": "/socket.io/(.*)",
-      "destination": "/api/socket/$1"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
