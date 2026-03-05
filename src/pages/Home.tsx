@@ -121,13 +121,13 @@ export default function Home() {
       localStorage.setItem('dmeet_userId', userId);
     }
 
-    const API = import.meta.env.VITE_SOCKET_URL?.replace(/\/$/, '') || '';
-
-    console.log('[DevocionalMeet] Gerando link...', { API, userId, name });
-    showToast('⏳ Gerando link...');
+    // URL RELATIVA — elimina CORS e problemas HTTP/HTTPS no Safari
+    const endpoint = '/rooms/create';
+    console.log('[DM] Gerando link...', { endpoint, userId, name });
+    showToast('⏳ Conectando ao servidor...');
 
     try {
-      const res = await fetch(`${API}/rooms/create`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,20 +136,27 @@ export default function Home() {
         body: JSON.stringify({ userId, userName: name }),
       });
 
-      console.log('[DevocionalMeet] Response status:', res.status);
+      console.log('[DM] Status:', res.status);
+
+      // Detectar se vercel.json retornou HTML em vez de JSON
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('text/html')) {
+        console.error('[DM] Servidor retornou HTML — problema no vercel.json');
+        showToast('❌ Erro de configuração do servidor (vercel.json)');
+        return;
+      }
 
       if (!res.ok) {
-        const errText = await res.text();
-        console.error('[DevocionalMeet] Erro servidor:', errText);
-        showToast('❌ Erro do servidor: ' + res.status);
+        const text = await res.text();
+        console.error('[DM] Erro servidor:', text);
+        showToast(`❌ Erro ${res.status}: ${text}`);
         return;
       }
 
       const data = await res.json();
-      console.log('[DevocionalMeet] Data recebida:', data);
+      console.log('[DM] Sucesso:', data);
 
       if (!data.link) {
-        console.error('[DevocionalMeet] Link ausente na resposta:', data);
         showToast('❌ Servidor não retornou o link.');
         return;
       }
@@ -159,15 +166,19 @@ export default function Home() {
 
       try {
         await navigator.clipboard.writeText(data.link);
-        showToast('✅ Link copiado: ' + data.link.replace('https://', ''));
       } catch {
-        showToast('🔗 Link gerado: ' + data.link.replace('https://', ''));
+        // Safari bloqueia clipboard sem interação explícita
+        console.warn('[DM] Clipboard bloqueado pelo Safari');
       }
 
+      showToast('✅ Link copiado: ' + data.link.replace('https://', ''));
+
     } catch (err: any) {
-      console.error('[DevocionalMeet] Fetch falhou:', err);
-      if (err.message?.includes('Failed to fetch')) {
-        showToast('❌ Não foi possível conectar ao servidor. Verifique VITE_SOCKET_URL.');
+      console.error('[DM] Fetch error:', err.name, err.message);
+      if (err.name === 'TypeError' && err.message === 'Load failed') {
+        showToast('❌ Safari bloqueou a conexão — verifique CORS e HTTPS no servidor');
+      } else if (err.message?.includes('Failed to fetch')) {
+        showToast('❌ Servidor inacessível — verifique se o backend está online');
       } else {
         showToast('❌ Erro: ' + (err.message || 'desconhecido'));
       }
@@ -190,12 +201,13 @@ export default function Home() {
       localStorage.setItem('dmeet_userId', userId);
     }
 
-    const API = import.meta.env.VITE_SOCKET_URL?.replace(/\/$/, '') || '';
-
+    // URL RELATIVA — elimina CORS e problemas HTTP/HTTPS no Safari
+    const endpoint = '/rooms/create';
+    console.log('[DM] Iniciando reunião...', { endpoint, userId, name });
     showToast('⏳ Criando sala...');
 
     try {
-      const res = await fetch(`${API}/rooms/create`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -204,14 +216,24 @@ export default function Home() {
         body: JSON.stringify({ userId, userName: name }),
       });
 
+      console.log('[DM] Status:', res.status);
+
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('text/html')) {
+        console.error('[DM] Servidor retornou HTML — problema no vercel.json');
+        showToast('❌ Erro de configuração do servidor (vercel.json)');
+        return;
+      }
+
       if (!res.ok) {
-        const errText = await res.text();
-        console.error('[DevocionalMeet] Erro:', errText);
-        showToast('❌ Erro ao criar sala: ' + res.status);
+        const text = await res.text();
+        console.error('[DM] Erro:', text);
+        showToast(`❌ Erro ao criar sala: ${res.status}`);
         return;
       }
 
       const data = await res.json();
+      console.log('[DM] Sala criada:', data);
 
       if (!data.code) {
         showToast('❌ Servidor não retornou o código da sala.');
@@ -225,9 +247,11 @@ export default function Home() {
       window.location.href = `/room/${data.code}?host=true`;
 
     } catch (err: any) {
-      console.error('[DevocionalMeet] Erro:', err);
-      if (err.message?.includes('Failed to fetch')) {
-        showToast('❌ Servidor offline. Verifique VITE_SOCKET_URL no .env');
+      console.error('[DM] Fetch error:', err.name, err.message);
+      if (err.name === 'TypeError' && err.message === 'Load failed') {
+        showToast('❌ Safari bloqueou a conexão — verifique CORS e HTTPS no servidor');
+      } else if (err.message?.includes('Failed to fetch')) {
+        showToast('❌ Servidor offline. Verifique se o backend está rodando.');
       } else {
         showToast('❌ Erro: ' + (err.message || 'desconhecido'));
       }

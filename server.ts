@@ -9,11 +9,25 @@ const nanoid = (size = 12) => randomBytes(size).toString('base64url').slice(0, s
 dotenv.config();
 
 const ALLOWED_ORIGINS = [
-  "https://www.devocionalmeet.shop",
-  "https://devocionalmeet.shop",
-  "http://localhost:3000",
-  "http://localhost:5173",
+  'https://www.devocionalmeet.shop',
+  'https://devocionalmeet.shop',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'capacitor://localhost',   // iOS WebView
+  'ionic://localhost',       // iOS WebView alternativo
 ];
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: Function) => {
+    if (!origin) return callback(null, true); // Postman, mobile apps, SSR
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    console.warn('[CORS] Origem bloqueada:', origin);
+    callback(new Error('CORS: origem não permitida'));
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
+  credentials: true,
+};
 
 // Banco em memória para salas e sessões de música
 const rooms: Record<string, any> = {};
@@ -31,13 +45,9 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const httpServer = http.createServer(app);
 
-  app.use(
-    cors({
-      origin: ALLOWED_ORIGINS,
-      methods: ["GET", "POST"],
-      credentials: true,
-    })
-  );
+  app.use(cors(corsOptions));
+  // Preflight explícito — Safari iOS exige resposta 200 ao OPTIONS
+  app.options('*', cors(corsOptions));
 
   const io = new Server(httpServer, {
     cors: {
@@ -50,8 +60,7 @@ async function startServer() {
   app.use(express.json());
 
   // Rotas de Salas
-  app.options('/rooms/create', cors());
-  app.post('/rooms/create', cors(), (req, res) => {
+  app.post('/rooms/create', (req, res) => {
     const { userId, userName } = req.body;
     if (!userId || !userName) return res.status(400).json({ error: 'userId e userName obrigatórios' });
 
