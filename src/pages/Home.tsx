@@ -25,8 +25,7 @@ function getLiderId(): string {
 }
 
 function salvarNome(nome: string) {
-  const userId = getUserId();
-  localStorage.setItem("dmeet_name_" + userId, nome);
+  localStorage.setItem("dmeet_name", nome);
 }
 
 export default function Home() {
@@ -41,9 +40,7 @@ export default function Home() {
   // Se veio de convite, começa com nome vazio. Se não, carrega nome salvo.
   const nomeSalvo = (() => {
     if (roomIdDaUrl) return ""; // convite = sempre vazio
-    const userId = localStorage.getItem("dmeet_userId");
-    if (!userId) return "";
-    return localStorage.getItem("dmeet_name_" + userId) || "";
+    return localStorage.getItem("dmeet_name") || "";
   })();
 
   const [userName, setUserName] = useState<string>(nomeSalvo);
@@ -63,32 +60,44 @@ export default function Home() {
   };
 
   // Líder cria sala nova
-  const createRoom = () => {
+  const handleCreateRoom = async () => {
     if (!userName.trim()) return;
     salvarNome(userName);
 
-    const liderId = getLiderId();
-    const novoRoomId = gerarRoomIdLider(liderId);
-    localStorage.setItem("dmeet_salaAtiva_" + liderId, novoRoomId);
+    try {
+      const res = await fetch('/rooms/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: getUserId(),
+          userName: userName
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
-    const params = new URLSearchParams();
-    params.set("nome", userName);
-    params.set("role", "host");
-    if (roomPassword) params.set("pwd", roomPassword);
+      // Salva papel do usuário
+      localStorage.setItem('userRole', 'leader');
 
-    navigate(`/room/${novoRoomId}?${params.toString()}`);
+      // Redireciona para o novo formato /room/xxx-xxxx-xxx com flag de host
+      navigate(`/room/${data.code}?host=true`);
+    } catch (err) {
+      console.error("Erro ao criar sala:", err);
+      // Fallback para o modo antigo se o servidor falhar
+      const liderId = getLiderId();
+      localStorage.setItem('userRole', 'leader');
+      navigate(`/room/${gerarRoomIdLider(liderId)}?nome=${userName}&role=host&host=true`);
+    }
   };
 
   // Participante entra via link de convite (roomIdDaUrl já preenchido)
   const joinRoomByInvite = () => {
     if (!userName.trim() || !roomIdDaUrl) return;
     salvarNome(userName);
+    localStorage.setItem('userRole', 'guest');
 
-    const params = new URLSearchParams();
-    params.set("nome", userName);
-    params.set("role", "audience");
-
-    navigate(`/room/${roomIdDaUrl}?${params.toString()}`);
+    // Redireciona para a sala, o MeetingWrapper cuidará do resto
+    navigate(`/room/${roomIdDaUrl}`);
   };
 
   // Participante cola link manualmente
@@ -108,11 +117,8 @@ export default function Home() {
 
     if (!roomId) return;
 
-    const params = new URLSearchParams();
-    params.set("nome", userName);
-    params.set("role", "audience");
-
-    navigate(`/room/${roomId}?${params.toString()}`);
+    localStorage.setItem('userRole', 'guest');
+    navigate(`/room/${roomId}`);
   };
 
   const steps = [
@@ -233,7 +239,7 @@ export default function Home() {
           }}
         >
           {/* Banner de convite */}
-          {roomIdDaUrl ? (
+          {(roomIdDaUrl && !isLeader) ? (
             <div className="text-center font-semibold text-[13px] bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-300">
               🙏 Você foi convidado para um devocional
             </div>
@@ -260,7 +266,7 @@ export default function Home() {
               onChange={(e) => setUserName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  roomIdDaUrl ? joinRoomByInvite() : (isLeader ? createRoom() : undefined);
+                  roomIdDaUrl ? joinRoomByInvite() : (isLeader ? handleCreateRoom() : undefined);
                 }
               }}
               className="w-full rounded-xl px-4 py-3 text-sm input-field"
@@ -359,8 +365,8 @@ export default function Home() {
           {/* Botões */}
           <div className="space-y-2">
 
-            {/* CASO A: Veio de convite */}
-            {roomIdDaUrl && (
+            {/* CASO A: Veio de convite e NÃO é líder -> Mostra apenas botão de entrar */}
+            {roomIdDaUrl && !isLeader && (
               <button
                 onClick={joinRoomByInvite}
                 disabled={!userName.trim()}
@@ -371,10 +377,10 @@ export default function Home() {
               </button>
             )}
 
-            {/* CASO B: Líder criando sala */}
-            {!roomIdDaUrl && isLeader && (
+            {/* CASO B: É líder -> Mostra botão de criar, independente se veio de link ou não */}
+            {isLeader && (
               <button
-                onClick={createRoom}
+                onClick={handleCreateRoom}
                 disabled={!userName.trim()}
                 className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm disabled:opacity-50"
               >
@@ -383,7 +389,7 @@ export default function Home() {
               </button>
             )}
 
-            {/* CASO C: Participante colando link */}
+            {/* CASO C: Participante entrando manualmente (sem link na URL) */}
             {!roomIdDaUrl && !isLeader && (
               <>
                 <div className="relative py-1">

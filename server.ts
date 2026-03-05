@@ -4,6 +4,7 @@ import { createServer as createViteServer } from "vite";
 import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
+import { nanoid } from "nanoid";
 dotenv.config();
 
 const ALLOWED_ORIGINS = [
@@ -12,6 +13,17 @@ const ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "http://localhost:5173",
 ];
+
+// Banco em memória para salas e sessões de música
+const rooms: Record<string, any> = {};
+const musicSessions: Record<string, any> = {};
+
+function generateRoomCode() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz';
+  const seg = (n: number) => Array.from({ length: n }, () =>
+    chars[Math.floor(Math.random() * chars.length)]).join('');
+  return `${seg(3)}-${seg(4)}-${seg(3)}`;
+}
 
 async function startServer() {
   const app = express();
@@ -34,52 +46,116 @@ async function startServer() {
     },
   });
 
+  app.use(express.json());
+
+  // Rotas de Salas
+  app.post('/rooms/create', (req, res) => {
+    const { userId, userName } = req.body;
+    if (!userId || !userName) return res.status(400).json({ error: 'userId e userName obrigatórios' });
+
+    const code = generateRoomCode();
+    const roomId = nanoid(12);
+    const link = `${process.env.VITE_APP_BASE_URL || 'http://localhost:5173'}/room/${code}`;
+
+    rooms[code] = {
+      roomId,
+      code,
+      link,
+      hostId: userId,
+      hostName: userName,
+      participants: [],
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+    };
+
+    res.json({ roomId, code, link });
+  });
+
+  app.get('/rooms/:code', (req, res) => {
+    const room = rooms[req.params.code];
+    if (!room) return res.status(404).json({ error: 'Sala não encontrada' });
+    if (Date.now() > room.expiresAt) {
+      delete rooms[req.params.code];
+      return res.status(410).json({ error: 'Sala expirada' });
+    }
+    res.json(room);
+  });
+
   io.on("connection", (socket) => {
-    // O servidor usa SEMPRE o seu próprio socket.id — ignora o que o cliente manda
     socket.on("join-room", (roomId: string, _clientId: string, userName: string) => {
-      const userId = socket.id; // socket.id aqui é sempre definido e correto
-
-      // Sai de salas anteriores para evitar mistura
-      const salasAnteriores = Array.from(socket.rooms).filter((r) => r !== socket.id);
-      salasAnteriores.forEach((sala) => {
-        socket.leave(sala);
-        socket.to(sala).emit("user-disconnected", userId);
-      });
-
+      // Manter compatibilidade com a lógica anterior ou migrar para room:join
       socket.join(roomId);
-      console.log(`[join-room] User ${userId} (${userName}) entrou em: ${roomId}`);
+      socket.to(roomId).emit("user-joined", socket.id, userName || "Participante");
+    });
 
-      // Avisa os outros com o socket.id (autoritativo) e o nome
-      socket.to(roomId).emit("user-joined", userId, userName || "Participante");
+    // Novos eventos de Sala (Google Meet Style)
+    socket.on('room:join', ({ code, userId, userName }) => {
+      const room = rooms[code];
+      if (!room) {
+        socket.emit('room:error', { message: 'Sala não encontrada' });
+        return;
+      }
+      socket.join(code);
+      const participant = { userId, userName, socketId: socket.id, joinedAt: Date.now() };
 
-      // Repassa anúncio de nome para todos na sala (usado pelo Agora)
-      socket.on("announce-name", (_roomId: string, uid: string | number, name: string) => {
-        socket.to(_roomId).emit("user-name", uid, name);
-      });
+      // Evita duplicados
+      room.participants = room.participants.filter((p: any) => p.userId !== userId);
+      room.participants.push(participant);
 
-      socket.on("offer", (payload) => {
-        io.to(payload.target).emit("offer", payload);
-      });
+      io.to(code).emit('room:participantJoined', { participant, total: room.participants.length });
+      socket.emit('room:synced', { participants: room.participants, hostId: room.hostId, code: room.code });
+    });
 
-      socket.on("answer", (payload) => {
-        io.to(payload.target).emit("answer", payload);
-      });
+    socket.on('room:leave', ({ code, userId }) => {
+      const room = rooms[code];
+      if (!room) return;
+      room.participants = room.participants.filter((p: any) => p.userId !== userId);
+      socket.leave(code);
+      io.to(code).emit('room:participantLeft', { userId, total: room.participants.length });
+    });
 
-      socket.on("ice-candidate", (payload) => {
-        if (payload.target) {
-          io.to(payload.target).emit("ice-candidate", payload);
-        } else {
-          socket.broadcast.to(roomId).emit("ice-candidate", payload);
+    // Eventos Spotify (Compartilhado)
+    socket.on('music:join', ({ roomId }) => {
+      socket.join(`music:${roomId}`);
+      if (musicSessions[roomId]) {
+        socket.emit('music:sync', musicSessions[roomId]);
+      }
+    });
+
+    socket.on('music:play', ({ roomId, trackUri, position, userName }) => {
+      musicSessions[roomId] = { trackUri, position, isPlaying: true, updatedAt: Date.now(), lastUser: userName };
+      socket.to(`music:${roomId}`).emit('music:sync', musicSessions[roomId]);
+    });
+
+    socket.on('music:toggle', ({ roomId, isPlaying, position }) => {
+      if (musicSessions[roomId]) {
+        musicSessions[roomId].isPlaying = isPlaying;
+        musicSessions[roomId].position = position;
+        musicSessions[roomId].updatedAt = Date.now();
+        socket.to(`music:${roomId}`).emit('music:sync', musicSessions[roomId]);
+      }
+    });
+
+    socket.on('music:queue', ({ roomId, queue }) => {
+      if (!musicSessions[roomId]) musicSessions[roomId] = { queue: [] };
+      musicSessions[roomId].queue = queue;
+      io.to(`music:${roomId}`).emit('music:queueUpdated', queue);
+    });
+
+    socket.on("chat_message", (payload) => {
+      // Pode ser roomId (antigo) ou code (novo)
+      const target = payload.room || payload.roomId || "global";
+      io.to(target).emit("chat_message", payload);
+    });
+
+    socket.on("disconnect", () => {
+      Object.keys(rooms).forEach(code => {
+        const room = rooms[code];
+        const before = room.participants.length;
+        room.participants = room.participants.filter((p: any) => p.socketId !== socket.id);
+        if (room.participants.length < before) {
+          io.to(code).emit('room:participantLeft', { total: room.participants.length });
         }
-      });
-
-      socket.on("chat_message", (payload) => {
-        io.to(roomId).emit("chat_message", payload);
-      });
-
-      socket.on("disconnect", () => {
-        console.log(`[disconnect] User ${userId} saiu de: ${roomId}`);
-        socket.to(roomId).emit("user-disconnected", userId);
       });
     });
   });

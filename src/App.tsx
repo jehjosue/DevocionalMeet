@@ -1,21 +1,30 @@
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import Home from "./pages/Home";
 import Room from "./pages/Room";
 import { ThemeProvider } from "./context/ThemeContext";
+import { useRoom } from "./hooks/useRoom";
 
-// Componente que redireciona /room/:roomName (sem ?nome=) para /?roomId=...
-function RoomGuard() {
+function MeetingWrapper() {
   const { roomName } = useParams();
-  const search = window.location.search;
-  const params = new URLSearchParams(search);
+  const { room, participants, joinRoom, leaveRoom, socket } = useRoom();
+  const [userName, setUserName] = useState(localStorage.getItem("dmeet_name") || "");
+  const userId = localStorage.getItem("dmeet_userId") || crypto.randomUUID();
 
-  // Se já tem o nome, deixa entrar na sala
-  if (params.get("nome")) {
-    return <Room />;
+  useEffect(() => {
+    localStorage.setItem("dmeet_userId", userId);
+    if (roomName && userName && !room) {
+      joinRoom(roomName, userId, userName);
+    }
+  }, [roomName, userName, room, joinRoom, userId]);
+
+  if (!userName || !roomName) {
+    return <Navigate to={`/?roomId=${roomName}`} replace />;
   }
 
-  // Se não tem nome, manda para a home com o roomId
-  return <Navigate to={`/?roomId=${roomName}`} replace />;
+  if (!room) return <div style={{ color: "#fff", padding: 20 }}>Carregando sala...</div>;
+
+  return <Room initialRoom={room} initialParticipants={participants} userId={userId} userName={userName} socket={socket} />;
 }
 
 export default function App() {
@@ -24,7 +33,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/room/:roomName" element={<RoomGuard />} />
+          <Route path="/room/:roomName" element={<MeetingWrapper />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
