@@ -34,19 +34,20 @@ export default function Home() {
   const navigate = useNavigate();
   const isDark = theme === "dark";
 
+  const userId = getUserId();
+
   // roomId vem sempre via ?roomId= (colocado pelo RoomGuard do App.tsx)
   const roomIdDaUrl = searchParams.get("roomId") || "";
 
   // Se veio de convite, começa com nome vazio. Se não, carrega nome salvo.
   const nomeSalvo = (() => {
-    if (roomIdDaUrl) return ""; // convite = sempre vazio
+    if (searchParams.get("roomId")) return ""; // convite = sempre vazio
     return localStorage.getItem("dmeet_name") || "";
   })();
 
   const [userName, setUserName] = useState<string>(nomeSalvo);
-  const [roomUrl, setRoomUrl] = useState("");
-  const [isLeader, setIsLeader] = useState(false);
-  const [roomPassword, setRoomPassword] = useState("");
+  const [showCodeModal, setShowCodeModal] = useState(false);
+  const [inputCode, setInputCode] = useState("");
 
   const gerarRoomIdLider = (liderId: string) => {
     const agora = new Date();
@@ -59,105 +60,70 @@ export default function Home() {
     return `devocional-${data}-${hora}-${rand}-${sufixoLider}`;
   };
 
-  // Líder cria sala nova
   const handleCreateRoom = async () => {
     if (!userName.trim()) return;
-    salvarNome(userName);
+
+    // Salvar nome e papel ANTES de redirecionar
+    localStorage.setItem('dmeet_name', userName);
+    localStorage.setItem('dmeet_role', 'leader');
 
     try {
-      const uId = getUserId();
       const res = await fetch('/rooms/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: uId,
-          userName: userName
-        }),
+        body: JSON.stringify({ userId, userName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Salvar no localStorage ANTES de redirecionar
-      localStorage.setItem('dmeet_userId', uId);
-      localStorage.setItem('dmeet_name', userName);
-      localStorage.setItem('dmeet_role', 'leader');
-      localStorage.setItem('roomCode', data.code);
-
-      // Redireciona para o novo formato /room/xxx-xxxx-xxx com flag de host
+      localStorage.setItem('dmeet_roomCode', data.code);
       window.location.href = `/room/${data.code}?host=true`;
     } catch (err) {
       console.error("Erro ao criar sala:", err);
-      const uId = getUserId();
+      // Fallback para sala legada se necessário
       const liderId = getLiderId();
-      localStorage.setItem('dmeet_userId', uId);
-      localStorage.setItem('dmeet_name', userName);
-      localStorage.setItem('dmeet_role', 'leader');
       window.location.href = `/room/${gerarRoomIdLider(liderId)}?nome=${userName}&role=host&host=true`;
     }
   };
 
-  // Participante entra via link de convite (roomIdDaUrl já preenchido)
-  const joinRoomByInvite = () => {
-    if (!userName.trim() || !roomIdDaUrl) return;
-    salvarNome(userName);
-    localStorage.setItem('userRole', 'guest');
-
-    // Redireciona para a sala, o MeetingWrapper cuidará do resto
-    navigate(`/room/${roomIdDaUrl}`);
+  const handleJoinWithCode = () => {
+    if (!userName.trim()) return;
+    setShowCodeModal(true);
   };
 
-  // Participante cola link manualmente
-  const joinRoomByLink = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userName.trim() || !roomUrl.trim()) return;
-    salvarNome(userName);
+  const handleJoinRoom = (code: string) => {
+    const clean = code.trim().toLowerCase();
+    if (!clean) return;
+    localStorage.setItem('dmeet_name', userName);
+    localStorage.setItem('dmeet_role', 'guest');
 
-    let roomId = roomUrl.trim();
-    // Extrai só o roomId de qualquer formato de URL
-    if (roomId.includes("/room/")) {
-      roomId = roomId.split("/room/")[1].split("?")[0];
-    } else if (roomId.includes("/")) {
-      roomId = roomId.split("/").pop() || roomId;
+    // Extrai o código caso o usuário cole a URL inteira
+    let finalCode = clean;
+    if (finalCode.includes("/room/")) {
+      finalCode = finalCode.split("/room/")[1].split("?")[0];
+    } else if (finalCode.includes("/")) {
+      finalCode = finalCode.split("/").pop() || finalCode;
     }
-    roomId = roomId.split("?")[0];
+    finalCode = finalCode.split("?")[0];
 
-    if (!roomId) return;
-
-    localStorage.setItem('userRole', 'guest');
-    navigate(`/room/${roomId}`);
+    window.location.href = `/room/${finalCode}`;
   };
-
-  const steps = [
-    { n: "1", label: "Digite seu nome" },
-    { n: "2", label: "Permita câmera/mic" },
-  ];
 
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center py-6 px-6 font-sans relative"
-      style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}
+      style={{ background: isDark ? "#000" : "#fff", color: "var(--text-primary)" }}
     >
       <div className="fixed top-6 right-6 z-50">
         <ThemeToggle />
       </div>
 
-      {/* Background glow */}
+      {/* Background glow - sutil */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
-          className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full"
+          className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full opacity-20"
           style={{
-            background: isDark
-              ? "radial-gradient(ellipse, rgba(11,61,145,0.18) 0%, transparent 70%)"
-              : "radial-gradient(ellipse, rgba(37,99,235,0.07) 0%, transparent 70%)",
-            filter: "blur(80px)",
-          }}
-        />
-        <div
-          className="absolute bottom-[-10%] right-[-10%] w-[55%] h-[55%] rounded-full"
-          style={{
-            background: isDark
-              ? "radial-gradient(ellipse, rgba(30,58,138,0.15) 0%, transparent 70%)"
-              : "radial-gradient(ellipse, rgba(37,99,235,0.05) 0%, transparent 70%)",
+            background: "radial-gradient(ellipse, #2563EB 0%, transparent 70%)",
             filter: "blur(80px)",
           }}
         />
@@ -167,7 +133,7 @@ export default function Home() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="max-w-[480px] w-full space-y-5 relative z-10"
+        className="max-w-[480px] w-full space-y-6 relative z-10"
       >
         {/* Header */}
         <div className="text-center space-y-3">
@@ -179,269 +145,217 @@ export default function Home() {
               style={{
                 background: isDark ? "rgba(37,99,235,0.1)" : "rgba(37,99,235,0.07)",
                 borderColor: isDark ? "rgba(37,99,235,0.3)" : "rgba(37,99,235,0.2)",
-                boxShadow: "0 0 30px rgba(37,99,235,0.15)",
               }}
             >
-              <BookOpen className="w-8 h-8" style={{ color: "#60a5fa" }} />
+              <BookOpen className="w-8 h-8" style={{ color: "#2563EB" }} />
             </motion.div>
           </div>
           <div className="space-y-1">
-            <h1 className="text-4xl font-black tracking-tighter" style={{ color: "var(--text-primary)" }}>
+            <h1 className="text-4xl font-black tracking-tighter" style={{ color: isDark ? "#fff" : "#1a1a1a" }}>
               DevocionalMeet
             </h1>
-            <div
-              className="inline-flex items-center px-3 py-1 rounded-full border text-[9px] font-bold uppercase tracking-[0.3em]"
-              style={{
-                background: isDark ? "rgba(37,99,235,0.08)" : "rgba(37,99,235,0.06)",
-                borderColor: isDark ? "rgba(37,99,235,0.2)" : "rgba(37,99,235,0.15)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              <span className="w-1.5 h-1.5 rounded-full mr-2 animate-pulse" style={{ background: "#2563eb" }} />
+            <p className="text-sm font-medium text-gray-500 uppercase tracking-widest">
               Comunhão &amp; Fé
-            </div>
+            </p>
           </div>
-        </div>
-
-        {/* Passos */}
-        <div
-          className="flex items-center justify-center gap-0 rounded-xl px-4 py-3"
-          style={{
-            background: isDark ? "rgba(37,99,235,0.06)" : "rgba(37,99,235,0.05)",
-            border: "1px solid var(--border-card)",
-          }}
-        >
-          {steps.map((step, i) => (
-            <React.Fragment key={step.n}>
-              <div className="flex flex-col items-center gap-1 px-3 text-center">
-                <div
-                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white"
-                  style={{ background: "linear-gradient(135deg, #0b3d91, #2563eb)" }}
-                >
-                  {step.n}
-                </div>
-                <span className="text-[9px] font-semibold leading-tight" style={{ color: "var(--text-secondary)" }}>
-                  {step.label}
-                </span>
-              </div>
-              {i < steps.length - 1 && (
-                <div className="w-6 h-[1px] flex-shrink-0" style={{ background: "var(--border-card)" }} />
-              )}
-            </React.Fragment>
-          ))}
         </div>
 
         {/* Versículos */}
         <DailyVerses />
 
-        {/* Card principal */}
-        <div
-          className="p-6 rounded-2xl space-y-4"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-card)",
-            boxShadow: "var(--glow-card)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          {/* Banner de convite */}
-          {(roomIdDaUrl && !isLeader) ? (
-            <div className="text-center font-semibold text-[13px] bg-blue-500/10 border border-blue-500/20 px-4 py-2 rounded-xl text-blue-300">
-              🙏 Você foi convidado para um devocional
-            </div>
-          ) : (
-            <div className="text-center font-bold text-lg mb-2" style={{ color: "var(--text-primary)" }}>
-              Bem-vindo ao DevocionalMeet!
-            </div>
-          )}
-
-          {/* Campo nome */}
-          <div className="space-y-1.5">
-            <label
-              className="text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 ml-1"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <User className="w-3 h-3" /> Seu nome
+        {/* Seção Principal */}
+        <div className="space-y-6">
+          {/* Campo Nome */}
+          <div className="space-y-2">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-gray-500 ml-1">
+              Seu nome
             </label>
             <input
               type="text"
-              required
-              autoFocus={!!roomIdDaUrl}
-              placeholder="Como você quer aparecer na reunião"
+              placeholder="Como você quer aparecer"
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  if (isLeader) {
-                    handleCreateRoom();
-                  } else if (roomIdDaUrl) {
-                    joinRoomByInvite();
-                  }
-                }
+              className="w-full rounded-xl px-4 py-4 text-base border-2 transition-all outline-none"
+              style={{
+                background: isDark ? "#121212" : "#fff",
+                borderColor: isDark ? "#2A2A2A" : "#E5E7EB",
+                color: isDark ? "#fff" : "#1a1a1a",
               }}
-              className="w-full rounded-xl px-4 py-3 text-sm input-field"
+              onFocus={(e) => e.currentTarget.style.borderColor = '#2563EB'}
+              onBlur={(e) => e.currentTarget.style.borderColor = isDark ? "#2A2A2A" : "#E5E7EB"}
             />
           </div>
 
-          {/* Toggle líder — só aparece na home sem convite */}
-          {!roomIdDaUrl && (
-            <div
-              className="rounded-xl overflow-hidden"
-              style={{ border: "1px solid var(--border-card)" }}
+          {/* Novos Botões Estilo Google Meet */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            {/* Nova reunião */}
+            <button
+              onClick={handleCreateRoom}
+              disabled={!userName.trim()}
+              onPointerDown={e => e.currentTarget.style.transform = 'scale(0.96)'}
+              onPointerUp={e => e.currentTarget.style.transform = 'scale(1)'}
+              onPointerLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              onMouseEnter={e => { if (userName.trim()) e.currentTarget.style.background = '#1D4ED8' }}
+              onMouseLeave={e => { if (userName.trim()) e.currentTarget.style.background = '#2563EB' }}
+              style={{
+                background: '#2563EB',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '999px',
+                padding: '14px 32px',
+                fontSize: '0.97rem',
+                fontWeight: '600',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                cursor: userName.trim() ? 'pointer' : 'not-allowed',
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, transform 0.12s ease',
+                opacity: userName.trim() ? 1 : 0.6,
+              }}
             >
-              <button
-                type="button"
-                onClick={() => setIsLeader(!isLeader)}
-                className="w-full flex items-center justify-between px-4 py-3 transition-colors duration-200"
-                style={{ background: isDark ? "rgba(0,0,0,0.2)" : "rgba(37,99,235,0.04)" }}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="p-1.5 rounded-lg transition-colors duration-200"
-                    style={{
-                      background: isLeader ? "rgba(37,99,235,0.15)" : "rgba(255,255,255,0.04)",
-                      color: isLeader ? "#60a5fa" : "var(--text-muted)",
-                    }}
-                  >
-                    <Lock className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-bold" style={{ color: "var(--text-primary)" }}>
-                      Sou líder / moderador
-                    </p>
-                    <p className="text-[9px]" style={{ color: "var(--text-muted)" }}>
-                      Ativa opções avançadas de sala
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-9 h-5 rounded-full relative transition-all duration-200"
-                    style={{
-                      background: isLeader
-                        ? "linear-gradient(135deg, #0b3d91, #2563eb)"
-                        : isDark ? "rgba(255,255,255,0.10)" : "#d1d5db",
-                      boxShadow: isLeader ? "0 0 12px rgba(37,99,235,0.4)" : "none",
-                    }}
-                  >
-                    <div
-                      className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200"
-                      style={{ left: isLeader ? "17px" : "2px" }}
-                    />
-                  </div>
-                  <ChevronDown
-                    className="w-4 h-4 transition-transform duration-200"
-                    style={{
-                      color: "var(--text-muted)",
-                      transform: isLeader ? "rotate(180deg)" : "rotate(0deg)",
-                    }}
-                  />
-                </div>
-              </button>
+              Nova reunião
+            </button>
 
-              <AnimatePresence>
-                {isLeader && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.22 }}
-                    style={{ overflow: "hidden" }}
-                  >
-                    <div
-                      className="px-4 pb-4 pt-1 space-y-1.5"
-                      style={{ borderTop: "1px solid var(--border-card)" }}
-                    >
-                      <label
-                        className="text-[9px] font-bold uppercase tracking-[0.2em] flex items-center gap-2 ml-1"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        <Lock className="w-3 h-3" /> Senha da sala (opcional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Deixe em branco para sala aberta"
-                        value={roomPassword}
-                        onChange={(e) => setRoomPassword(e.target.value)}
-                        className="w-full rounded-xl px-4 py-3 text-sm input-field"
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
-
-          {/* Botões */}
-          <div className="space-y-2">
-
-            {/* CASO A: Veio de convite e NÃO é líder -> Mostra apenas botão de entrar */}
-            {roomIdDaUrl && !isLeader && (
-              <button
-                onClick={joinRoomByInvite}
-                disabled={!userName.trim()}
-                className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm disabled:opacity-50"
-              >
-                <ArrowRight className="w-4 h-4" />
-                Entrar no Devocional
-              </button>
-            )}
-
-            {/* CASO B: É líder -> Mostra botão de criar, independente se veio de link ou não */}
-            {isLeader && (
-              <button
-                onClick={handleCreateRoom}
-                disabled={!userName.trim()}
-                className="btn-primary w-full py-4 px-6 rounded-xl flex items-center justify-center gap-3 text-sm disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4" />
-                Criar Sala de Devocional
-              </button>
-            )}
-
-            {/* CASO C: Participante entrando manualmente (sem link na URL) */}
-            {!roomIdDaUrl && !isLeader && (
-              <>
-                <div className="relative py-1">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t" style={{ borderColor: "var(--border-card)" }} />
-                  </div>
-                  <div className="relative flex justify-center text-[9px] uppercase tracking-widest">
-                    <span
-                      className="px-2 font-black"
-                      style={{ background: "var(--bg-page)", color: "var(--text-muted)" }}
-                    >
-                      Entre com link de convite
-                    </span>
-                  </div>
-                </div>
-
-                <form onSubmit={joinRoomByLink} className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Cole o link ou código da sala"
-                    value={roomUrl}
-                    onChange={(e) => setRoomUrl(e.target.value)}
-                    className="flex-1 rounded-xl px-4 py-3 text-sm input-field"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!userName.trim() || !roomUrl.trim()}
-                    className="p-3 rounded-xl transition-all duration-200 active:scale-95 border disabled:opacity-40"
-                    style={{
-                      background: "var(--bg-card)",
-                      borderColor: "var(--border-input)",
-                      color: "#60a5fa",
-                    }}
-                  >
-                    <ArrowRight className="w-5 h-5" />
-                  </button>
-                </form>
-              </>
-            )}
+            {/* Participar com código */}
+            <button
+              onClick={handleJoinWithCode}
+              disabled={!userName.trim()}
+              onPointerDown={e => e.currentTarget.style.transform = 'scale(0.96)'}
+              onPointerUp={e => e.currentTarget.style.transform = 'scale(1)'}
+              onPointerLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              onMouseEnter={e => {
+                if (userName.trim()) {
+                  e.currentTarget.style.borderColor = '#9CA3AF';
+                  e.currentTarget.style.background = '#F9FAFB';
+                }
+              }}
+              onMouseLeave={e => {
+                if (userName.trim()) {
+                  e.currentTarget.style.borderColor = '#D1D5DB';
+                  e.currentTarget.style.background = '#ffffff';
+                }
+              }}
+              style={{
+                background: '#ffffff',
+                color: '#1a1a1a',
+                border: '1.5px solid #D1D5DB',
+                borderRadius: '999px',
+                padding: '14px 32px',
+                fontSize: '0.97rem',
+                fontWeight: '500',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                cursor: userName.trim() ? 'pointer' : 'not-allowed',
+                whiteSpace: 'nowrap',
+                transition: 'border-color 0.15s ease, background 0.15s ease, transform 0.12s ease',
+                opacity: userName.trim() ? 1 : 0.6,
+              }}
+            >
+              Participar com código
+            </button>
           </div>
         </div>
       </motion.div>
+
+      {/* Modal: Participar com código */}
+      <AnimatePresence>
+        {showCodeModal && (
+          <div
+            onClick={() => setShowCodeModal(false)}
+            style={{
+              position: 'fixed', inset: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 100,
+              backdropFilter: 'blur(4px)',
+              padding: '20px'
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: '#ffffff',
+                borderRadius: '16px',
+                padding: '28px 24px',
+                width: '100%',
+                maxWidth: '380px',
+                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)'
+              }}
+            >
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a', marginBottom: '6px' }}>
+                Participar com um código
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: '#6B7280', marginBottom: '20px' }}>
+                Digite o código da reunião
+              </p>
+
+              <input
+                autoFocus
+                type="text"
+                placeholder="abc-defg-hij"
+                value={inputCode}
+                onChange={(e) => setInputCode(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && inputCode.trim()) handleJoinRoom(inputCode) }}
+                style={{
+                  width: '100%',
+                  border: '1.5px solid #D1D5DB',
+                  borderRadius: '10px',
+                  padding: '12px 16px',
+                  fontSize: '1rem',
+                  fontFamily: 'system-ui',
+                  color: '#1a1a1a',
+                  background: '#fff',
+                  outline: 'none',
+                  marginBottom: '16px',
+                  letterSpacing: '0.05em'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#2563EB'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#D1D5DB'}
+              />
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowCodeModal(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#6B7280',
+                    fontSize: '0.9rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  Cancelar
+                </button>
+                <button
+                  disabled={!inputCode.trim()}
+                  onClick={() => handleJoinRoom(inputCode)}
+                  style={{
+                    background: '#2563EB',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '999px',
+                    padding: '10px 24px',
+                    fontSize: '0.9rem',
+                    fontWeight: '600',
+                    cursor: inputCode.trim() ? 'pointer' : 'not-allowed',
+                    opacity: inputCode.trim() ? 1 : 0.5,
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Participar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
