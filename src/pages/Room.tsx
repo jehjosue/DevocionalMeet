@@ -9,6 +9,8 @@ import io, { Socket } from "socket.io-client";
 import { SOCKET_URL, AGORA_APP_ID } from "../config";
 import WaitingScreen from "../components/WaitingScreen";
 import Activities from "../components/Activities";
+import VideoGrid from "../components/VideoGrid";
+import { useLocalVideo } from "../hooks/useLocalVideo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RemoteUser {
@@ -59,6 +61,8 @@ function fixAgoraSize(el: HTMLElement) {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+// ParticipantTile and VideoGrid were moved to separate component files.
+
 /** Floating emoji that rises and fades out */
 function FloatingReaction({ emoji, x, onDone }: { emoji: string; x: number; onDone: () => void; key?: any }) {
   useEffect(() => {
@@ -74,123 +78,6 @@ function FloatingReaction({ emoji, x, onDone }: { emoji: string; x: number; onDo
       {emoji}
     </div>
   );
-}
-
-/** Participant tile — WhatsApp style */
-function ParticipantTile({
-  uid, name, isSpeaking, isMuted, isHandRaised, tileEmoji, isLocal,
-  videoTrack, localVideoRef,
-}: {
-  uid: string | number; name: string; isSpeaking: boolean; isMuted: boolean;
-  isHandRaised: boolean; tileEmoji?: string; isLocal?: boolean;
-  videoTrack?: any; localVideoRef?: React.RefObject<HTMLDivElement | null>;
-  key?: any;
-}) {
-  const color = getColor(name);
-  const inits = initials(name);
-  const hasVideo = isLocal ? true : !!videoTrack;
-
-  return (
-    <div style={{
-      position: "relative",
-      background: hasVideo ? "#1c1c1c" : "#111111",
-      borderRadius: 12,
-      overflow: "hidden",
-      border: isSpeaking ? "2.5px solid #25D366" : "2.5px solid transparent",
-      transition: "border-color 0.3s",
-      aspectRatio: "1 / 1",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    }}>
-      {/* Video layer */}
-      {isLocal ? (
-        <div
-          ref={localVideoRef}
-          style={{ position: "absolute", inset: 0, transform: "scaleX(-1)" }}
-        />
-      ) : videoTrack ? (
-        <RemoteVideoEl videoTrack={videoTrack} />
-      ) : (
-        /* Avatar */
-        <div style={{
-          width: 64, height: 64, borderRadius: "50%",
-          background: color,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "1.4rem", fontWeight: 700, color: "#fff",
-        }}>{inits}</div>
-      )}
-
-      {/* Speaking pulse ring */}
-      {isSpeaking && (
-        <div style={{
-          position: "absolute", inset: 0, borderRadius: 10,
-          border: "2px solid #25D366",
-          animation: "waPulse 1.5s ease-in-out infinite",
-          pointerEvents: "none",
-        }} />
-      )}
-
-      {/* Hand raised badge */}
-      {isHandRaised && (
-        <div style={{
-          position: "absolute", top: 6, right: 6,
-          background: "#FFD700", borderRadius: "50%",
-          width: 24, height: 24, display: "flex",
-          alignItems: "center", justifyContent: "center",
-          fontSize: "0.85rem",
-        }}>✋</div>
-      )}
-
-      {/* Tile emoji reaction */}
-      {tileEmoji && (
-        <div style={{
-          position: "absolute", top: "50%", left: "50%",
-          transform: "translate(-50%, -50%)",
-          fontSize: "2rem",
-          animation: "waTileEmoji 0.3s ease both",
-          pointerEvents: "none",
-        }}>{tileEmoji}</div>
-      )}
-
-      {/* Bottom strip */}
-      <div style={{
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        padding: "18px 8px 6px",
-        background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)",
-        display: "flex", alignItems: "center", gap: 5,
-      }}>
-        {isMuted && (
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" /><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
-          </svg>
-        )}
-        <span style={{
-          color: "#E9EDEF", fontSize: "0.7rem", fontWeight: 600,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          textShadow: "0 1px 3px rgba(0,0,0,0.9)",
-        }}>{isLocal ? `${name} (Você)` : name}</span>
-      </div>
-    </div>
-  );
-}
-
-/** Mounts a remote video track into a div */
-function RemoteVideoEl({ videoTrack }: { videoTrack: any }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!ref.current || !videoTrack) return;
-    if (!ref.current.querySelector("video")) {
-      try {
-        videoTrack.play(ref.current);
-        setTimeout(() => { if (ref.current) fixAgoraSize(ref.current); }, 100);
-        const obs = new ResizeObserver(() => { if (ref.current) fixAgoraSize(ref.current); });
-        obs.observe(ref.current);
-        return () => obs.disconnect();
-      } catch (e) { console.error(e); }
-    }
-  }, [videoTrack]);
-  return <div ref={ref} style={{ position: "absolute", inset: 0 }} />;
 }
 
 /** Chat message bubble */
@@ -349,9 +236,11 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const socketRef = useRef<Socket | null>(null);
   const uidNameMap = useRef<Map<string | number, string>>(new Map());
   const localUidRef = useRef<string | number | null>(null);
-  const localVideoDivRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const floatIdRef = useRef(0);
+
+  // ── PiP and Local Stream ──
+  const { videoRef: localVideoPipRef, stream: localStream } = useLocalVideo();
 
   const userRole = localStorage.getItem('userRole');
   const isHost = initialRoom?.hostId === userId || userRole === 'leader' || searchParams.get("host") === "true";
@@ -505,11 +394,11 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         clearTimeout(failTO);
 
         // Play local video
-        if (localVideoDivRef.current && !localVideoDivRef.current.querySelector("video")) {
-          videoTrack.play(localVideoDivRef.current);
-          setTimeout(() => { if (localVideoDivRef.current) fixAgoraSize(localVideoDivRef.current); }, 100);
-          const obs = new ResizeObserver(() => { if (localVideoDivRef.current) fixAgoraSize(localVideoDivRef.current); });
-          obs.observe(localVideoDivRef.current);
+        if (localVideoPipRef.current && !localVideoPipRef.current.querySelector("video")) {
+          videoTrack.play(localVideoPipRef.current);
+          setTimeout(() => { if (localVideoPipRef.current) fixAgoraSize(localVideoPipRef.current); }, 100);
+          const obs = new ResizeObserver(() => { if (localVideoPipRef.current) fixAgoraSize(localVideoPipRef.current); });
+          obs.observe(localVideoPipRef.current);
         }
       } catch (err: any) {
         const msg = err?.message || String(err);
@@ -599,6 +488,36 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       return u?.name || "Participante";
     }),
   ];
+
+  // Join room and sync participants
+  useEffect(() => {
+    if (!socketRef.current || !roomName) return;
+    const socket = socketRef.current;
+
+    socket.on('room:participantJoined', ({ participant, total }: any) => {
+      setParticipants(prev => {
+        const exists = prev.find(p => p.userId === participant.userId);
+        if (exists) return prev;
+        return [...prev, participant];
+      });
+    });
+
+    socket.on('room:participantLeft', ({ userId, total }: any) => {
+      setParticipants(prev => prev.filter(p => p.userId !== userId));
+    });
+
+    socket.on('room:synced', ({ participants }: any) => {
+      setParticipants(participants);
+    });
+
+    socket.emit('room:join', { code: roomName, userId, userName });
+
+    return () => {
+      socket.off('room:participantJoined');
+      socket.off('room:participantLeft');
+      socket.off('room:synced');
+    };
+  }, [roomName, userId, userName]);
 
   // Condição para exibir tela de espera (Google Meet style)
   const isAlone = participants.length <= 1;
@@ -769,70 +688,15 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         </div>
 
         {/* ── Video grid ── */}
-        <div style={{
-          flex: 1,
-          padding: "8px 8px 0",
-          overflowY: "auto",
-          display: "grid",
-          gridTemplateColumns: layoutGrid ? "1fr 1fr" : "1fr",
-          gap: 6,
-          alignContent: "start",
-        }}>
-          {/* Local tile */}
-          <ParticipantTile
-            uid="local"
-            name={`${userName}${isHost ? " 👑" : ""}`}
-            isSpeaking={activeSpeakers.has("local")}
-            isMuted={!micOn}
-            isHandRaised={maoLevantada}
-            tileEmoji={tileEmojis.find(e => e.uid === "local")?.emoji}
-            isLocal
-            localVideoRef={localVideoDivRef}
+        <div style={{ flex: 1, padding: '8px', overflow: 'hidden' }}>
+          <VideoGrid
+            participants={[
+              ...participants.filter(p => p.userId !== userId),
+              { userId, userName: 'Você' } // Local user always last
+            ]}
+            userId={userId}
+            localVideoRef={localVideoPipRef}
           />
-
-          {/* Remote tiles */}
-          {visibleRemote.map(u => (
-            <ParticipantTile
-              key={String(u.uid)}
-              uid={u.uid}
-              name={u.name}
-              isSpeaking={activeSpeakers.has(String(u.uid))}
-              isMuted={false}
-              isHandRaised={maosRemotas.some(m => String(m.id) === String(u.uid))}
-              tileEmoji={tileEmojis.find(e => String(e.uid) === String(u.uid))?.emoji}
-              videoTrack={u.videoTrack}
-            />
-          ))}
-
-          {/* "+X more" tile */}
-          {extraCount > 0 && (
-            <div style={{
-              aspectRatio: "1/1", borderRadius: 12,
-              background: "#111111",
-              border: "2px solid transparent",
-              display: "flex", flexDirection: "column",
-              alignItems: "center", justifyContent: "center", gap: 6,
-            }}>
-              <div style={{
-                fontSize: "1.8rem", fontWeight: 700, color: "#E9EDEF",
-                fontVariantNumeric: "tabular-nums",
-              }}>+{extraCount}</div>
-              <div style={{ fontSize: "0.65rem", color: "#8696A0", textAlign: "center" }}>
-                mais participantes
-              </div>
-              {/* last visible remote name + mic */}
-              {sortedRemote[MAX_TILES] && (
-                <div style={{ fontSize: "0.62rem", color: "#8696A0", display: "flex", alignItems: "center", gap: 3 }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8696A0" strokeWidth="2.5" strokeLinecap="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
-                  </svg>
-                  {sortedRemote[MAX_TILES].name.split(" ")[0]}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* ── Reaction emoji strip ── */}
