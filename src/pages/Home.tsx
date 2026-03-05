@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { BookOpen, Plus, ArrowRight, Lock, User, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -35,6 +35,7 @@ export default function Home() {
   const isDark = theme === "dark";
 
   const userId = getUserId();
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // roomId vem sempre via ?roomId= (colocado pelo RoomGuard do App.tsx)
   const roomIdDaUrl = searchParams.get("roomId") || "";
@@ -48,6 +49,24 @@ export default function Home() {
   const [userName, setUserName] = useState<string>(nomeSalvo);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [inputCode, setInputCode] = useState("");
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [toast, setToast] = useState('');
+
+  // Fechar menu ao clicar fora
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
+  };
 
   const gerarRoomIdLider = (liderId: string) => {
     const agora = new Date();
@@ -58,6 +77,72 @@ export default function Home() {
     const rand = Math.floor(Math.random() * 900 + 100);
     const sufixoLider = liderId.slice(-6);
     return `devocional-${data}-${hora}-${rand}-${sufixoLider}`;
+  };
+
+  const handleGenerateLink = async () => {
+    if (!userName.trim()) return;
+    setIsMenuOpen(false);
+    try {
+      const res = await fetch('/rooms/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, userName }),
+      });
+      const data = await res.json();
+      const link = `${window.location.origin}/room/${data.code}`;
+      await navigator.clipboard.writeText(link);
+      showToast('🔗 Link copiado para a área de transferência!');
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao gerar link.');
+    }
+  };
+
+  const handleStartNow = async () => {
+    if (!userName.trim()) return;
+    setIsMenuOpen(false);
+
+    localStorage.setItem('dmeet_name', userName);
+    localStorage.setItem('dmeet_role', 'leader');
+
+    try {
+      const res = await fetch('/rooms/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, userName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      localStorage.setItem('dmeet_roomCode', data.code);
+      window.location.href = `/room/${data.code}?host=true`;
+    } catch (err) {
+      console.error("Erro ao criar sala:", err);
+      const liderId = getLiderId();
+      window.location.href = `/room/${gerarRoomIdLider(liderId)}?nome=${userName}&role=host&host=true`;
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!userName.trim()) return;
+    setIsMenuOpen(false);
+    try {
+      const res = await fetch('/rooms/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, userName }),
+      });
+      const data = await res.json();
+      const link = `${window.location.origin}/room/${data.code}`;
+      const title = encodeURIComponent('DevocionalMeet - Reunião');
+      const details = encodeURIComponent(`Participe pelo link: ${link}`);
+      window.open(
+        `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}`,
+        '_blank'
+      );
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const handleCreateRoom = async () => {
@@ -188,32 +273,78 @@ export default function Home() {
 
           {/* Novos Botões Estilo Google Meet */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {/* Nova reunião */}
-            <button
-              onClick={handleCreateRoom}
-              disabled={!userName.trim()}
-              onPointerDown={e => e.currentTarget.style.transform = 'scale(0.96)'}
-              onPointerUp={e => e.currentTarget.style.transform = 'scale(1)'}
-              onPointerLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-              onMouseEnter={e => { if (userName.trim()) e.currentTarget.style.background = '#1D4ED8' }}
-              onMouseLeave={e => { if (userName.trim()) e.currentTarget.style.background = '#2563EB' }}
-              style={{
-                background: '#2563EB',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '999px',
-                padding: '14px 32px',
-                fontSize: '0.97rem',
-                fontWeight: '600',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                cursor: userName.trim() ? 'pointer' : 'not-allowed',
-                whiteSpace: 'nowrap',
-                transition: 'background 0.15s ease, transform 0.12s ease',
-                opacity: userName.trim() ? 1 : 0.6,
-              }}
-            >
-              Nova reunião
-            </button>
+
+            {/* Wrapper relativo para o menu de dropdown */}
+            <div ref={menuRef} style={{ position: 'relative', display: 'inline-block' }}>
+              {/* Nova reunião */}
+              <button
+                onClick={() => { if (userName.trim()) setIsMenuOpen(!isMenuOpen) }}
+                disabled={!userName.trim()}
+                onPointerDown={e => { if (userName.trim()) e.currentTarget.style.transform = 'scale(0.96)' }}
+                onPointerUp={e => { if (userName.trim()) e.currentTarget.style.transform = 'scale(1)' }}
+                onPointerLeave={e => { if (userName.trim()) e.currentTarget.style.transform = 'scale(1)' }}
+                onMouseEnter={e => { if (userName.trim()) e.currentTarget.style.background = '#1D4ED8' }}
+                onMouseLeave={e => { if (userName.trim()) e.currentTarget.style.background = '#2563EB' }}
+                style={{
+                  background: '#2563EB',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '999px',
+                  padding: '14px 32px',
+                  fontSize: '0.97rem',
+                  fontWeight: '600',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  cursor: userName.trim() ? 'pointer' : 'not-allowed',
+                  whiteSpace: 'nowrap',
+                  transition: 'background 0.15s ease, transform 0.12s ease',
+                  opacity: userName.trim() ? 1 : 0.6,
+                }}
+              >
+                Nova reunião
+              </button>
+
+              {/* Menu dropdown */}
+              <AnimatePresence>
+                {isMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      left: 0,
+                      zIndex: 999,
+                      minWidth: '280px',
+                      background: '#ffffff',
+                      borderRadius: '14px',
+                      overflow: 'hidden',
+                      boxShadow: '0 4px 24px rgba(0,0,0,0.18), 0 1px 4px rgba(0,0,0,0.08)',
+                    }}
+                  >
+                    <MenuItem
+                      label={"Gerar um link da reunião\npara compartilhar"}
+                      icon={<LinkIcon />}
+                      onClick={handleGenerateLink}
+                      border
+                    />
+                    <MenuItem
+                      label="Iniciar uma reunião agora"
+                      icon={<VideoIcon />}
+                      onClick={handleStartNow}
+                      border
+                    />
+                    <MenuItem
+                      label={"Agendar no\nGoogle Agenda"}
+                      icon={<CalendarIcon />}
+                      onClick={handleSchedule}
+                      border={false}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Participar com código */}
             <button
@@ -356,6 +487,102 @@ export default function Home() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 20, x: '-50%' }}
+            style={{
+              position: 'fixed',
+              bottom: '32px',
+              left: '50%',
+              background: 'rgba(0,0,0,0.85)',
+              backdropFilter: 'blur(12px)',
+              color: '#fff',
+              padding: '12px 24px',
+              borderRadius: '999px',
+              fontSize: '0.88rem',
+              fontFamily: 'system-ui',
+              zIndex: 9999,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+function MenuItem({ label, icon, onClick, border }: { label: string; icon: React.ReactNode; onClick: () => void; border: boolean }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '18px 20px',
+        borderBottom: border ? '1px solid #F0F0F0' : 'none',
+        cursor: 'pointer',
+        background: hovered ? '#F5F5F5' : '#ffffff',
+        transition: 'background 0.12s ease',
+      }}
+    >
+      <span style={{
+        color: '#1a1a1a',
+        fontSize: '0.95rem',
+        fontWeight: '400',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        lineHeight: '1.45',
+        flex: 1,
+        whiteSpace: 'pre-line',
+        textAlign: 'left'
+      }}>
+        {label}
+      </span>
+      <div style={{ marginLeft: '16px', flexShrink: 0 }}>
+        {icon}
+      </div>
+    </div>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
+function VideoIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M23 7l-7 5 7 5V7z" />
+      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
+  );
+}
+
+function CalendarIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+      stroke="#1a1a1a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
   );
 }
