@@ -45,8 +45,8 @@ export default function Home() {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       setMenuPos({
-        top: rect.bottom + window.scrollY + 8,
-        left: rect.left + window.scrollX,
+        top: rect.bottom + 8,
+        left: rect.left,
         width: rect.width,
       });
     }
@@ -109,35 +109,68 @@ export default function Home() {
   const handleGenerateLink = async () => {
     setShowMenu(false);
 
+    const name = userName.trim();
+    if (!name) {
+      showToast('⚠️ Digite seu nome antes de gerar o link');
+      return;
+    }
+
     let userId = localStorage.getItem('dmeet_userId');
     if (!userId) {
       userId = crypto.randomUUID();
       localStorage.setItem('dmeet_userId', userId);
     }
 
-    const name = userName;
-    const API = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+    const API = import.meta.env.VITE_SOCKET_URL?.replace(/\/$/, '') || '';
+
+    console.log('[DevocionalMeet] Gerando link...', { API, userId, name });
+    showToast('⏳ Gerando link...');
 
     try {
       const res = await fetch(`${API}/rooms/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
         body: JSON.stringify({ userId, userName: name }),
       });
 
-      if (!res.ok) throw new Error(`Status ${res.status}`);
+      console.log('[DevocionalMeet] Response status:', res.status);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('[DevocionalMeet] Erro servidor:', errText);
+        showToast('❌ Erro do servidor: ' + res.status);
+        return;
+      }
 
       const data = await res.json();
-      if (!data.link) throw new Error('Link não retornado');
+      console.log('[DevocionalMeet] Data recebida:', data);
 
+      if (!data.link) {
+        console.error('[DevocionalMeet] Link ausente na resposta:', data);
+        showToast('❌ Servidor não retornou o link.');
+        return;
+      }
+
+      localStorage.setItem('dmeet_name', name);
       localStorage.setItem('dmeet_lastLink', data.link);
 
-      await navigator.clipboard.writeText(data.link).catch(() => { });
-      showToast('🔗 Link copiado: ' + data.link.replace('https://', ''));
+      try {
+        await navigator.clipboard.writeText(data.link);
+        showToast('✅ Link copiado: ' + data.link.replace('https://', ''));
+      } catch {
+        showToast('🔗 Link gerado: ' + data.link.replace('https://', ''));
+      }
 
-    } catch (err) {
-      console.error(err);
-      showToast('❌ Erro ao gerar link. Verifique sua conexão.');
+    } catch (err: any) {
+      console.error('[DevocionalMeet] Fetch falhou:', err);
+      if (err.message?.includes('Failed to fetch')) {
+        showToast('❌ Não foi possível conectar ao servidor. Verifique VITE_SOCKET_URL.');
+      } else {
+        showToast('❌ Erro: ' + (err.message || 'desconhecido'));
+      }
     }
   };
 
@@ -145,8 +178,8 @@ export default function Home() {
   const handleStartNow = async () => {
     setShowMenu(false);
 
-    const name = userName;
-    if (!name.trim()) {
+    const name = userName.trim();
+    if (!name) {
       showToast('⚠️ Digite seu nome antes de iniciar');
       return;
     }
@@ -157,29 +190,47 @@ export default function Home() {
       localStorage.setItem('dmeet_userId', userId);
     }
 
-    const API = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+    const API = import.meta.env.VITE_SOCKET_URL?.replace(/\/$/, '') || '';
+
+    showToast('⏳ Criando sala...');
 
     try {
       const res = await fetch(`${API}/rooms/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, userName: name.trim() }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ userId, userName: name }),
       });
 
-      if (!res.ok) throw new Error(`Status ${res.status}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('[DevocionalMeet] Erro:', errText);
+        showToast('❌ Erro ao criar sala: ' + res.status);
+        return;
+      }
 
       const data = await res.json();
-      if (!data.code) throw new Error('Código não retornado');
 
-      localStorage.setItem('dmeet_name', name.trim());
+      if (!data.code) {
+        showToast('❌ Servidor não retornou o código da sala.');
+        return;
+      }
+
+      localStorage.setItem('dmeet_name', name);
       localStorage.setItem('dmeet_role', 'leader');
       localStorage.setItem('dmeet_roomCode', data.code);
 
       window.location.href = `/room/${data.code}?host=true`;
 
-    } catch (err) {
-      console.error(err);
-      showToast('❌ Erro ao criar sala. Tente novamente.');
+    } catch (err: any) {
+      console.error('[DevocionalMeet] Erro:', err);
+      if (err.message?.includes('Failed to fetch')) {
+        showToast('❌ Servidor offline. Verifique VITE_SOCKET_URL no .env');
+      } else {
+        showToast('❌ Erro: ' + (err.message || 'desconhecido'));
+      }
     }
   };
 
@@ -302,12 +353,8 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Versículos */}
-        <DailyVerses />
-
-        {/* Seção Principal */}
-        <div className="space-y-6">
-          {/* Campo Nome */}
+        {/* Container Nome e Botões */}
+        <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-[11px] font-bold uppercase tracking-widest ml-1" style={{ color: isDark ? "rgba(255,255,255,0.5)" : "#64748B" }}>
               Seu nome
@@ -331,17 +378,13 @@ export default function Home() {
             />
           </div>
 
-          {/* Container de Botões Lado a Lado */}
           <div style={{
             display: 'flex',
             flexDirection: 'row',
             alignItems: 'center',
             gap: '10px',
             width: '100%',
-            marginTop: '16px',
           }}>
-
-            {/* Nova reunião */}
             <button
               ref={btnRef}
               data-menu-btn="true"
@@ -365,7 +408,6 @@ export default function Home() {
               Nova reunião
             </button>
 
-            {/* Participar com código */}
             <button
               onClick={() => setShowCodeModal(true)}
               style={{
@@ -392,107 +434,109 @@ export default function Home() {
             >
               Participar com código
             </button>
-
           </div>
+        </div>
 
-          {/* DROPDOWN VIA PORTAL — 2 OPÇÕES APENAS */}
-          {showMenu && createPortal(
+        {/* Versículos POR ÚLTIMO */}
+        <DailyVerses />
+
+        {/* DROPDOWN VIA PORTAL */}
+        {showMenu && createPortal(
+          <div
+            data-menu="true"
+            style={{
+              position: 'fixed',
+              top: `${menuPos.top}px`,
+              left: `${menuPos.left}px`,
+              width: `${menuPos.width}px`,
+              zIndex: 99999,
+              background: '#ffffff',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.06)',
+              border: '1px solid #F0F0F0',
+              animation: 'menuAppear 0.18s ease',
+            }}
+          >
+
+            {/* ── OPÇÃO 1 ── Gerar link */}
             <div
-              data-menu="true"
+              onClick={handleGenerateLink}
+              onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
+              onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
               style={{
-                position: 'absolute',
-                top: `${menuPos.top}px`,
-                left: `${menuPos.left}px`,
-                width: `${menuPos.width}px`,
-                zIndex: 99999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '20px 20px',
+                borderBottom: '1px solid #F0F0F0',
+                cursor: 'pointer',
                 background: '#ffffff',
-                borderRadius: '16px',
-                overflow: 'hidden',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.06)',
-                border: '1px solid #F0F0F0',
-                animation: 'menuAppear 0.18s ease',
+                transition: 'background 0.12s ease',
               }}
             >
-
-              {/* ── OPÇÃO 1 ── Gerar link */}
-              <div
-                onClick={handleGenerateLink}
-                onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
-                onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '20px 20px',
-                  borderBottom: '1px solid #F0F0F0',
-                  cursor: 'pointer',
-                  background: '#ffffff',
-                  transition: 'background 0.12s ease',
-                }}
+              <span style={{
+                color: '#1a1a1a',
+                fontSize: '0.95rem',
+                fontWeight: '400',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                lineHeight: '1.45',
+                flex: 1,
+                whiteSpace: 'pre-line',
+                textAlign: 'left'
+              }}>
+                {'Gerar um link da reunião\npara compartilhar'}
+              </span>
+              <svg width="22" height="22" viewBox="0 0 24 24"
+                fill="none" stroke="#1a1a1a"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ marginLeft: '16px', flexShrink: 0 }}
               >
-                <span style={{
-                  color: '#1a1a1a',
-                  fontSize: '0.95rem',
-                  fontWeight: '400',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  lineHeight: '1.45',
-                  flex: 1,
-                  whiteSpace: 'pre-line',
-                  textAlign: 'left'
-                }}>
-                  {'Gerar um link da reunião\npara compartilhar'}
-                </span>
-                <svg width="22" height="22" viewBox="0 0 24 24"
-                  fill="none" stroke="#1a1a1a"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  style={{ marginLeft: '16px', flexShrink: 0 }}
-                >
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                </svg>
-              </div>
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
+            </div>
 
-              {/* ── OPÇÃO 2 ── Iniciar agora */}
-              <div
-                onClick={handleStartNow}
-                onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
-                onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '20px 20px',
-                  cursor: 'pointer',
-                  background: '#ffffff',
-                  transition: 'background 0.12s ease',
-                  borderRadius: '0 0 16px 16px',
-                }}
+            {/* ── OPÇÃO 2 ── Iniciar agora */}
+            <div
+              onClick={handleStartNow}
+              onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
+              onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '20px 20px',
+                cursor: 'pointer',
+                background: '#ffffff',
+                transition: 'background 0.12s ease',
+                borderRadius: '0 0 16px 16px',
+              }}
+            >
+              <span style={{
+                color: '#1a1a1a',
+                fontSize: '0.95rem',
+                fontWeight: '400',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                lineHeight: '1.45',
+                flex: 1,
+                textAlign: 'left'
+              }}>
+                Iniciar uma reunião agora
+              </span>
+              <svg width="22" height="22" viewBox="0 0 24 24"
+                fill="none" stroke="#1a1a1a"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ marginLeft: '16px', flexShrink: 0 }}
               >
-                <span style={{
-                  color: '#1a1a1a',
-                  fontSize: '0.95rem',
-                  fontWeight: '400',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  lineHeight: '1.45',
-                  flex: 1,
-                  textAlign: 'left'
-                }}>
-                  Iniciar uma reunião agora
-                </span>
-                <svg width="22" height="22" viewBox="0 0 24 24"
-                  fill="none" stroke="#1a1a1a"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  style={{ marginLeft: '16px', flexShrink: 0 }}
-                >
-                  <path d="M23 7l-7 5 7 5V7z" />
-                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                </svg>
-              </div>
+                <path d="M23 7l-7 5 7 5V7z" />
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              </svg>
+            </div>
 
-            </div>,
-            document.body
-          )}
-        </div>
+          </div>,
+          document.body
+        )}
       </motion.div>
 
       {/* Modal: Participar com código */}
