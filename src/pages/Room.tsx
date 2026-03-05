@@ -563,7 +563,11 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     setCopied(true); setTimeout(() => setCopied(false), 2000);
   };
 
-  const leaveCall = () => navigate("/");
+  const leaveCall = () => {
+    localStorage.removeItem("dmeet_role");
+    localStorage.removeItem("dmeet_name");
+    navigate("/");
+  };
 
   // ── Tile ordering ──
   const sortedRemote = [...remoteUsers].sort((a, b) => {

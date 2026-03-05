@@ -4,7 +4,8 @@ import { createServer as createViteServer } from "vite";
 import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
-import { nanoid } from "nanoid";
+import { randomBytes } from "crypto";
+const nanoid = (size = 12) => randomBytes(size).toString('base64url').slice(0, size);
 dotenv.config();
 
 const ALLOWED_ORIGINS = [
@@ -68,7 +69,7 @@ async function startServer() {
       expiresAt: Date.now() + 24 * 60 * 60 * 1000,
     };
 
-    res.json({ roomId, code, link });
+    res.json({ roomId, code, link, isHost: true });
   });
 
   app.get('/rooms/:code', (req, res) => {
@@ -164,6 +165,32 @@ async function startServer() {
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  // Proxy Gemini para segurança (BUG 7)
+  app.post("/api/gemini", async (req, res) => {
+    const { prompt } = req.body;
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: "GEMINI_API_KEY não configurada no servidor" });
+    }
+
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+
+      const data = await response.json();
+      res.json(data);
+    } catch (err) {
+      console.error("Erro no proxy Gemini:", err);
+      res.status(500).json({ error: "Erro ao processar requisição Gemini" });
+    }
   });
 
   if (process.env.NODE_ENV !== "production") {

@@ -65,28 +65,34 @@ export default function Home() {
     salvarNome(userName);
 
     try {
+      const uId = getUserId();
       const res = await fetch('/rooms/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: getUserId(),
+          userId: uId,
           userName: userName
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Salva papel do usuário
-      localStorage.setItem('userRole', 'leader');
+      // Salvar no localStorage ANTES de redirecionar
+      localStorage.setItem('dmeet_userId', uId);
+      localStorage.setItem('dmeet_name', userName);
+      localStorage.setItem('dmeet_role', 'leader');
+      localStorage.setItem('roomCode', data.code);
 
       // Redireciona para o novo formato /room/xxx-xxxx-xxx com flag de host
-      navigate(`/room/${data.code}?host=true`);
+      window.location.href = `/room/${data.code}?host=true`;
     } catch (err) {
       console.error("Erro ao criar sala:", err);
-      // Fallback para o modo antigo se o servidor falhar
+      const uId = getUserId();
       const liderId = getLiderId();
-      localStorage.setItem('userRole', 'leader');
-      navigate(`/room/${gerarRoomIdLider(liderId)}?nome=${userName}&role=host&host=true`);
+      localStorage.setItem('dmeet_userId', uId);
+      localStorage.setItem('dmeet_name', userName);
+      localStorage.setItem('dmeet_role', 'leader');
+      window.location.href = `/room/${gerarRoomIdLider(liderId)}?nome=${userName}&role=host&host=true`;
     }
   };
 
@@ -266,7 +272,11 @@ export default function Home() {
               onChange={(e) => setUserName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  roomIdDaUrl ? joinRoomByInvite() : (isLeader ? handleCreateRoom() : undefined);
+                  if (isLeader) {
+                    handleCreateRoom();
+                  } else if (roomIdDaUrl) {
+                    joinRoomByInvite();
+                  }
                 }
               }}
               className="w-full rounded-xl px-4 py-3 text-sm input-field"
