@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
+import { Copy, Check, Camera, Mic, MicOff, VideoOff, PhoneOff } from 'lucide-react';
 
 export default function WaitingScreen({ room, onEndCall, isMuted, isCameraOff, onToggleMic, onToggleCam, userName }: any) {
     const [copied, setCopied] = useState(false);
-    const [shareOpen, setShareOpen] = useState(false);
 
     const handleCopy = async () => {
         const link = room.link || `${window.location.origin}/room/${room.code}`;
@@ -20,7 +20,7 @@ export default function WaitingScreen({ room, onEndCall, isMuted, isCameraOff, o
                 url: link,
             });
         } else {
-            setShareOpen(true);
+            handleCopy();
         }
     };
 
@@ -30,62 +30,123 @@ export default function WaitingScreen({ room, onEndCall, isMuted, isCameraOff, o
             background: '#000',
             display: 'flex', flexDirection: 'column',
             zIndex: 100,
+            fontFamily: 'Inter, system-ui, sans-serif'
         }}>
-            <div style={{ flex: 1, padding: '0 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                <h2 style={{ color: '#fff', fontSize: '1.25rem', fontWeight: 700, marginBottom: 10 }}>
+            <div style={{ flex: 1, padding: '0 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center', maxWidth: 500, margin: '0 auto' }}>
+                <h1 style={{
+                    color: '#fff',
+                    fontSize: '32px',
+                    fontWeight: '800',
+                    marginBottom: '16px',
+                    letterSpacing: '-0.02em'
+                }}>
                     Só você está aqui
-                </h2>
-                <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '0.92rem', lineHeight: 1.5, marginBottom: 20 }}>
+                </h1>
+
+                <p style={{
+                    color: '#E0E0E0',
+                    fontSize: '18px',
+                    lineHeight: '1.4',
+                    marginBottom: '32px'
+                }}>
                     Compartilhe este link da reunião com quem você quer que participe.
                 </p>
 
                 <div style={{
-                    background: '#2A3942', borderRadius: 14,
-                    padding: '15px 16px', display: 'flex',
-                    alignItems: 'center', justifyContent: 'space-between',
-                    marginBottom: 20,
+                    background: '#1F2937',
+                    borderRadius: '12px',
+                    padding: '18px 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '24px',
+                    border: '1px solid rgba(255,255,255,0.1)'
                 }}>
-                    <span style={{ color: '#fff', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                        {(room.link || "").replace('https://', '').replace('http://', '')}
+                    <span style={{
+                        color: '#9CA3AF',
+                        fontSize: '16px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flex: 1
+                    }}>
+                        {`${window.location.host}/room/${room.code}`}
                     </span>
-                    <button onClick={handleCopy} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 10, color: copied ? '#25D366' : 'rgba(255,255,255,0.6)' }}>
-                        {copied ? '✓' : '📋'}
+                    <button onClick={handleCopy} style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        marginLeft: '12px',
+                        color: copied ? '#22C55E' : '#9CA3AF',
+                        display: 'flex',
+                        alignItems: 'center'
+                    }}>
+                        {copied ? <Check size={20} /> : <Copy size={20} />}
                     </button>
                 </div>
 
                 <button onClick={handleShare} style={{
-                    background: '#25D366',
-                    border: 'none', borderRadius: 999,
-                    padding: '14px 28px',
-                    display: 'inline-flex', alignItems: 'center', gap: 10,
-                    color: '#000', fontSize: '0.95rem', fontWeight: 700,
-                    cursor: 'pointer', width: 'fit-content',
-                }}>
+                    background: '#22C55E',
+                    border: 'none',
+                    borderRadius: '99px',
+                    padding: '16px 32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    color: '#000',
+                    fontSize: '18px',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    width: 'fit-content',
+                    transition: 'all 0.2s ease',
+                }}
+                    onMouseOver={(e: any) => e.currentTarget.style.backgroundColor = '#16a34a'}
+                    onMouseOut={(e: any) => e.currentTarget.style.backgroundColor = '#22C55E'}
+                >
                     🚀 Enviar convite
                 </button>
             </div>
 
             {/* Control bar */}
             <div style={{
-                margin: '0 12px 24px',
-                background: 'rgba(30,30,30,0.95)',
-                borderRadius: 999, padding: '10px 16px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14,
+                margin: '0 auto 40px',
+                background: '#1F2937',
+                borderRadius: '99px',
+                padding: '12px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '20px',
+                border: '1px solid rgba(255,255,255,0.05)',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)'
             }}>
                 <button onClick={onToggleCam} style={{
-                    width: 52, height: 52, borderRadius: '50%',
-                    background: isCameraOff ? '#EF4444' : 'rgba(255,255,255,0.12)',
-                    border: 'none', cursor: 'pointer', fontSize: '1.2rem',
-                }}>📷</button>
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: isCameraOff ? '#EF4444' : 'rgba(255,255,255,0.08)',
+                    color: '#fff', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.2s'
+                }}>
+                    {isCameraOff ? <VideoOff size={24} /> : <Camera size={24} />}
+                </button>
                 <button onClick={onToggleMic} style={{
-                    width: 52, height: 52, borderRadius: '50%',
-                    background: isMuted ? '#EF4444' : 'rgba(255,255,255,0.12)',
-                    border: 'none', cursor: 'pointer', fontSize: '1.2rem',
-                }}>🎤</button>
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: isMuted ? '#EF4444' : 'rgba(255,255,255,0.08)',
+                    color: '#fff', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.2s'
+                }}>
+                    {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
+                </button>
                 <button onClick={onEndCall} style={{
-                    width: 52, height: 52, borderRadius: '50%',
-                    background: '#EF4444', border: 'none', cursor: 'pointer', fontSize: '1.2rem',
-                }}>📵</button>
+                    width: 56, height: 56, borderRadius: '50%',
+                    background: '#EF4444',
+                    color: '#fff', border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.2s'
+                }}>
+                    <PhoneOff size={24} />
+                </button>
             </div>
         </div>
     );
