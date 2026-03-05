@@ -600,6 +600,24 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     }),
   ];
 
+  // Condição para exibir tela de espera (Google Meet style)
+  const isAlone = participants.length <= 1;
+
+  if (isAlone) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', animation: 'waFadeIn 0.35s ease-out' }}>
+        <WaitingScreen
+          meetLink={`${window.location.origin}/room/${roomName}`}
+          onEndCall={leaveCall}
+          isMuted={!micOn}
+          isCameraOff={!videoOn}
+          onToggleMic={toggleMic}
+          onToggleCam={toggleVideo}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       {/* ── Global styles ── */}
@@ -1115,19 +1133,6 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
           roomId={initialRoom?.code}
           userName={userName}
         />
-
-        {/* ── Waiting Screen (Alone) ── */}
-        {totalParticipants <= 1 && (
-          <WaitingScreen
-            room={initialRoom}
-            userName={userName}
-            isMuted={!micOn}
-            isCameraOff={!videoOn}
-            onToggleMic={toggleMic}
-            onToggleCam={toggleVideo}
-            onEndCall={leaveCall}
-          />
-        )}
       </div>
     </>
   );
