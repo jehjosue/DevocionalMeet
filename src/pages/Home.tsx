@@ -123,8 +123,8 @@ export default function Home() {
 
     // URL ABSOLUTA do back-end na VPS — front no Vercel, back em api.devocionalmeet.shop
     const API = 'https://api.devocionalmeet.shop';
-    const endpoint = `${API}/rooms/create`;
-    console.warn('[DM-FORCE-v1.0.2] Verificando conexão...', {
+    const endpoint = `${API}/rooms/create?v=${Date.now()}`;
+    console.warn('[DM-DEBUG-v1.0.3] Chamando API...', {
       url: endpoint,
       time: new Date().toISOString()
     });
