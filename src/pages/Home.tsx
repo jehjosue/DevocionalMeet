@@ -122,7 +122,7 @@ export default function Home() {
     }
 
     // URL ABSOLUTA do back-end na VPS — front no Vercel, back em api.devocionalmeet.shop
-    const API = (import.meta.env.VITE_SOCKET_URL as string || '').replace(/\/$/, '');
+    const API = (import.meta.env.VITE_SOCKET_URL || 'https://api.devocionalmeet.shop').replace(/\/$/, '');
     const endpoint = `${API}/rooms/create`;
     console.log('[DM] Gerando link...', { endpoint, userId, name });
     showToast('⏳ Conectando ao servidor...');
@@ -203,7 +203,7 @@ export default function Home() {
     }
 
     // URL ABSOLUTA do back-end na VPS — front no Vercel, back em api.devocionalmeet.shop
-    const API = (import.meta.env.VITE_SOCKET_URL as string || '').replace(/\/$/, '');
+    const API = (import.meta.env.VITE_SOCKET_URL || 'https://api.devocionalmeet.shop').replace(/\/$/, '');
     const endpoint = `${API}/rooms/create`;
     console.log('[DM] Iniciando reunião...', { endpoint, userId, name });
     showToast('⏳ Criando sala...');
