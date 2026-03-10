@@ -532,7 +532,6 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
   const leaveCall = () => {
     localStorage.removeItem("dmeet_role");
-    localStorage.removeItem("dmeet_name");
     navigate("/");
   };
 

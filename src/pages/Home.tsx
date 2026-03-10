@@ -32,10 +32,7 @@ export default function Home() {
 
 
   // Se veio de convite, começa com nome vazio. Se não, carrega nome salvo.
-  const nomeSalvo = (() => {
-    if (searchParams.get("roomId")) return ""; // convite = sempre vazio
-    return localStorage.getItem("dmeet_name") || "";
-  })();
+  const nomeSalvo = localStorage.getItem("dmeet_name") || "";
 
   const [userName, setUserName] = useState<string>(nomeSalvo);
   const [showCodeModal, setShowCodeModal] = useState(false);
@@ -415,6 +412,12 @@ export default function Home() {
                 salvarNome(e.target.value);
               }}
               className="w-full rounded-xl px-4 py-4 text-base border-2 transition-all outline-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && userName.trim()) {
+                  const rId = searchParams.get("roomId");
+                  if (rId) handleJoinRoom(rId);
+                }
+              }}
               style={{
                 background: isDark ? "#1C1C2E" : "#fff",
                 borderColor: isDark ? "#2A2A3E" : "#E2E8F0",
@@ -432,28 +435,53 @@ export default function Home() {
             gap: '10px',
             width: '100%',
           }}>
-            <button
-              ref={btnRef}
-              data-menu-btn="true"
-              onClick={handleOpenMenu}
-              style={{
-                flex: 1,
-                background: '#2563EB',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '999px',
-                padding: '15px 0',
-                fontSize: '0.97rem',
-                fontWeight: '700',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                cursor: 'pointer',
-                transition: 'background 0.15s ease',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#1D4ED8'}
-              onMouseLeave={e => e.currentTarget.style.background = '#2563EB'}
-            >
-              Nova reunião
-            </button>
+            {searchParams.get("roomId") ? (
+              <button
+                onClick={() => handleJoinRoom(searchParams.get("roomId")!)}
+                disabled={!userName.trim()}
+                style={{
+                  flex: 1,
+                  background: '#2563EB',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '999px',
+                  padding: '15px 0',
+                  fontSize: '0.97rem',
+                  fontWeight: '700',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  cursor: userName.trim() ? 'pointer' : 'not-allowed',
+                  opacity: userName.trim() ? 1 : 0.6,
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={e => { if (userName.trim()) e.currentTarget.style.background = '#1D4ED8' }}
+                onMouseLeave={e => { if (userName.trim()) e.currentTarget.style.background = '#2563EB' }}
+              >
+                Entrar na Reunião
+              </button>
+            ) : (
+              <button
+                ref={btnRef}
+                data-menu-btn="true"
+                onClick={handleOpenMenu}
+                style={{
+                  flex: 1,
+                  background: '#2563EB',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '999px',
+                  padding: '15px 0',
+                  fontSize: '0.97rem',
+                  fontWeight: '700',
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#1D4ED8'}
+                onMouseLeave={e => e.currentTarget.style.background = '#2563EB'}
+              >
+                Nova reunião
+              </button>
+            )}
 
             <button
               onClick={() => setShowCodeModal(true)}

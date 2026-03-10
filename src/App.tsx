@@ -34,7 +34,7 @@ function MeetingWrapper() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code, userName, !!socket, isHost]);
 
-  if (!userName || !code) {
+  if ((!userName || !code) && !new URLSearchParams(window.location.search).get("roomId")) {
     return <Navigate to={`/?roomId=${code || ""}`} replace />;
   }
 
