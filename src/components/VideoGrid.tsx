@@ -9,7 +9,7 @@ interface Participant {
 interface VideoGridProps {
     participants: Participant[];
     userId: string;
-    localVideoRef: React.RefObject<HTMLVideoElement>;
+    localVideoRef: React.RefObject<HTMLDivElement>;
 }
 
 export default function VideoGrid({ participants, userId, localVideoRef }: VideoGridProps) {

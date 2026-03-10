@@ -11,7 +11,6 @@ import { SOCKET_URL, AGORA_APP_ID } from "../config";
 import WaitingScreen from "../components/WaitingScreen";
 import Activities from "../components/Activities";
 import VideoGrid from "../components/VideoGrid";
-import { useLocalVideo } from "../hooks/useLocalVideo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RemoteUser {
@@ -232,6 +231,8 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const [showParticipants, setShowParticipants] = useState(false);
   const [allMuted, setAllMuted] = useState(false);
   const [mutedParticipants, setMutedParticipants] = useState<string[]>([]);
+  const [allVideoDisabled, setAllVideoDisabled] = useState(false);
+  const [videoDisabledParticipants, setVideoDisabledParticipants] = useState<string[]>([]);
 
   // ── Refs ──
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -242,9 +243,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const localUidRef = useRef<string | number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const floatIdRef = useRef(0);
-
-  // ── PiP and Local Stream ──
-  const { videoRef: localVideoPipRef, stream: localStream } = useLocalVideo();
+  const localVideoPipRef = useRef<HTMLDivElement>(null);
 
   const userRole = localStorage.getItem('userRole');
   const isHost = initialRoom?.hostId === userId || userRole === 'leader' || searchParams.get("host") === "true";
@@ -472,6 +471,17 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     socketRef.current?.emit('host:muteOne', { code: roomName, userId: targetUserId, muted: !isMuted });
   };
 
+  const handleDisableVideoAll = () => {
+    const next = !allVideoDisabled;
+    setAllVideoDisabled(next);
+    socketRef.current?.emit('host:disableVideoAll', { code: roomName, disabled: next });
+  };
+
+  const handleDisableVideoOne = (targetUserId: string) => {
+    const isDisabled = videoDisabledParticipants.includes(targetUserId);
+    socketRef.current?.emit('host:disableVideoOne', { code: roomName, userId: targetUserId, disabled: !isDisabled });
+  };
+
   // ── Tile ordering ──
   const sortedRemote = [...remoteUsers].sort((a, b) => {
     const aHand = maosRemotas.find(m => String(m.id) === String(a.uid));
@@ -488,6 +498,30 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const MAX_TILES = 7;
   const visibleRemote = sortedRemote.slice(0, MAX_TILES);
   const extraCount = totalParticipants - 1 - visibleRemote.length; // extra beyond visible
+
+  // PiP manual management for Agora Video element
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      const vid = localVideoPipRef.current?.querySelector('video');
+      if (document.hidden && vid && document.pictureInPictureEnabled && vid.readyState >= 2) {
+        try { if (vid !== document.pictureInPictureElement) await vid.requestPictureInPicture(); } catch (e) { console.warn('PiP:', e); }
+      } else if (!document.hidden && document.pictureInPictureElement) {
+        try { await document.exitPictureInPicture(); } catch (e) { }
+      }
+    };
+    const handleBlur = async () => {
+      const vid = localVideoPipRef.current?.querySelector('video');
+      if (vid && document.pictureInPictureEnabled && vid.readyState >= 2) {
+        try { if (vid !== document.pictureInPictureElement) await vid.requestPictureInPicture(); } catch (e) { console.warn('PiP:', e); }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   // ── Stacked avatars for nav bar (up to 3 remote + local) ──
   const avatarList = [userName, ...sortedRemote.slice(0, 2).map(u => u.name)];
@@ -546,12 +580,35 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       }
     });
 
+    socket.on('room:videoDisabledByHost', ({ disabled, all, userId: targetUserId }: any) => {
+      if (all) {
+        setAllVideoDisabled(disabled);
+        if (disabled) {
+          localVideoTrackRef.current?.setEnabled(false);
+          setVideoOn(false);
+        }
+      } else if (targetUserId === userId) {
+        if (disabled) {
+          localVideoTrackRef.current?.setEnabled(false);
+          setVideoOn(false);
+          setVideoDisabledParticipants(prev => prev.includes(userId) ? prev : [...prev, userId]);
+        } else {
+          setVideoDisabledParticipants(prev => prev.filter(id => id !== userId));
+        }
+      } else {
+        if (disabled) setVideoDisabledParticipants(prev => prev.includes(targetUserId) ? prev : [...prev, targetUserId]);
+        else setVideoDisabledParticipants(prev => prev.filter(id => id !== targetUserId));
+      }
+    });
+
     socket.emit('room:join', { code: roomName, userId, userName });
 
     return () => {
       socket.off('room:participantJoined');
       socket.off('room:participantLeft');
       socket.off('room:synced');
+      socket.off('room:mutedByHost');
+      socket.off('room:videoDisabledByHost');
     };
   }, [roomName, userId, userName]);
 
@@ -1038,6 +1095,51 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                           {allMuted ? 'Desmutar todos' : 'Mutar todos'}
                         </span>
                       </button>
+
+                      {/* Botão Desligar Câmeras Todas */}
+                      <button
+                        onClick={handleDisableVideoAll}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '10px',
+                          padding: '14px 20px',
+                          background: allVideoDisabled ? 'rgba(239, 68, 68, 0.12)' : 'rgba(37, 99, 235, 0.12)',
+                          border: allVideoDisabled ? '1.5px solid rgba(239, 68, 68, 0.4)' : '1.5px solid rgba(37, 99, 235, 0.4)',
+                          borderRadius: '16px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          marginTop: '8px'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(0.99)'}
+                        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={allVideoDisabled ? '#EF4444' : '#60A5FA'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          {allVideoDisabled ? (
+                            <>
+                              <line x1="1" y1="1" x2="23" y2="23" />
+                              <path d="M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3m3-3h6l2 3h4a2 2 0 0 1 2 2v9.34" />
+                              <path d="M23 7l-7 5 7 5V7z" />
+                            </>
+                          ) : (
+                            <>
+                              <path d="M23 7l-7 5 7 5V7z" />
+                              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                            </>
+                          )}
+                        </svg>
+
+                        <span style={{
+                          color: allVideoDisabled ? '#EF4444' : '#60A5FA',
+                          fontSize: '0.95rem',
+                          fontWeight: '700',
+                          fontFamily: 'system-ui',
+                        }}>
+                          {allVideoDisabled ? 'Reativar Câmeras' : 'Desligar Câmeras'}
+                        </span>
+                      </button>
                     </div>
                   )}
 
@@ -1054,8 +1156,11 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                         isLocal={p.userId === userId}
                         isHost={p.userId === initialRoom?.hostId}
                         isMutedByHost={mutedParticipants.includes(p.userId)}
+                        isCameraOff={videoDisabledParticipants.includes(p.userId)}
                         canMute={isHost && p.userId !== userId}
                         onMuteOne={() => handleMuteOne(p.userId)}
+                        canDisableVideo={isHost && p.userId !== userId}
+                        onDisableVideoOne={() => handleDisableVideoOne(p.userId)}
                       />
                     ))}
                   </div>
@@ -1290,7 +1395,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 }
 
 function ParticipantRow({
-  participant, isLocal, isHost, isMutedByHost, canMute, onMuteOne
+  participant, isLocal, isHost, isMutedByHost, isCameraOff, canMute, onMuteOne, canDisableVideo, onDisableVideoOne
 }: any) {
   const [hovered, setHovered] = useState(false);
 
@@ -1372,8 +1477,16 @@ function ParticipantRow({
         )}
       </div>
 
-      {/* Ícone mic status + botão mutar individual */}
+      {/* Ícone mic status + botões individuais host */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Indicador Cam */}
+        {(isCameraOff || !participant.videoOn) && (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round">
+            <line x1="1" y1="1" x2="23" y2="23" />
+            <path d="M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3m3-3h6l2 3h4a2 2 0 0 1 2 2v9.34" />
+            <path d="M23 7l-7 5 7 5V7z" />
+          </svg>
+        )}
         {/* Indicador mic */}
         <svg width="16" height="16" viewBox="0 0 24 24"
           fill="none"
@@ -1398,25 +1511,49 @@ function ParticipantRow({
           )}
         </svg>
 
-        {/* Botão mutar individual — só aparece no hover E só para o host */}
+        {/* Botões individuais — só aparece no hover E só para o host */}
         {canMute && hovered && (
-          <button
-            onClick={onMuteOne}
-            style={{
-              background: 'rgba(239,68,68,0.15)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: '8px',
-              padding: '4px 10px',
-              color: '#EF4444',
-              fontSize: '0.7rem',
-              fontWeight: '600',
-              fontFamily: 'system-ui',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            Mutar
-          </button>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              title="Mutar/Desmutar"
+              onClick={onMuteOne}
+              style={{
+                background: 'rgba(239,68,68,0.15)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                borderRadius: '8px',
+                padding: '4px 8px',
+                color: '#EF4444',
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="1" y1="1" x2="23" y2="23" />
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+              </svg>
+            </button>
+            {canDisableVideo && (
+              <button
+                title="Desligar Câmera"
+                onClick={onDisableVideoOne}
+                style={{
+                  background: 'rgba(239,68,68,0.15)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  borderRadius: '8px',
+                  padding: '4px 8px',
+                  color: '#EF4444',
+                  cursor: 'pointer',
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                  <path d="M21 21H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3m3-3h6l2 3h4a2 2 0 0 1 2 2v9.34" />
+                  <path d="M23 7l-7 5 7 5V7z" />
+                </svg>
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

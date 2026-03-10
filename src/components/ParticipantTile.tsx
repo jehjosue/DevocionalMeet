@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { MicOff, User } from 'lucide-react';
 
 interface ParticipantTileProps {
+    key?: React.Key;
     participant: {
         userId: string;
         userName: string;
     };
     isLocal?: boolean;
-    localVideoRef?: React.RefObject<HTMLVideoElement>;
+    localVideoRef?: React.RefObject<HTMLDivElement>;
     isSpeaking?: boolean;
     isMuted?: boolean;
+    isCameraOff?: boolean;
     style?: React.CSSProperties;
     className?: string;
 }
@@ -20,6 +22,7 @@ export default function ParticipantTile({
     localVideoRef,
     isSpeaking,
     isMuted,
+    isCameraOff,
     style,
     className
 }: ParticipantTileProps) {
@@ -36,18 +39,21 @@ export default function ParticipantTile({
             {/* Video or Avatar */}
             <div className="w-full h-full flex items-center justify-center">
                 {isLocal ? (
-                    <video
-                        ref={localVideoRef}
-                        autoPlay
-                        muted
-                        playsInline
-                        style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            transform: 'scaleX(-1)' // Mirror local video
-                        }}
-                    />
+                    isCameraOff ? (
+                        <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center">
+                            <User className="w-10 h-10 text-gray-400" />
+                        </div>
+                    ) : (
+                        <div
+                            ref={localVideoRef}
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                overflow: 'hidden',
+                                transform: 'scaleX(-1)' // Mirror local video container
+                            }}
+                        />
+                    )
                 ) : (
                     <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center">
                         <User className="w-10 h-10 text-gray-400" />

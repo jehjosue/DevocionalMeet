@@ -167,6 +167,14 @@ async function startServer() {
       io.to(code).emit('room:mutedByHost', { userId, muted, all: false });
     });
 
+    socket.on('host:disableVideoAll', ({ code, disabled }) => {
+      socket.to(code).emit('room:videoDisabledByHost', { disabled, all: true });
+    });
+
+    socket.on('host:disableVideoOne', ({ code, userId, disabled }) => {
+      io.to(code).emit('room:videoDisabledByHost', { userId, disabled, all: false });
+    });
+
     socket.on("disconnect", () => {
       Object.keys(rooms).forEach(code => {
         const room = rooms[code];
