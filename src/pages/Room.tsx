@@ -199,7 +199,7 @@ const IcSplit = () => (
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Room({ initialRoom, initialParticipants, userId, userName, socket }: any) {
-  const { roomName } = useParams();
+  const { code: roomName } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
