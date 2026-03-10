@@ -1412,8 +1412,11 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         <Activities
           isOpen={activitiesOpen}
           onClose={() => setActivitiesOpen(false)}
-          roomId={initialRoom?.code}
+          roomId={roomName}
           userName={userName}
+          socket={socketRef.current}
+          isHost={isHost}
+          userId={userId}
         />
       </div>
     </>

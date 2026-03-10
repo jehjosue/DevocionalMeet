@@ -175,6 +175,107 @@ async function startServer() {
       io.to(code).emit('room:videoDisabledByHost', { userId, disabled, all: false });
     });
 
+    // ── ACTIVITIES ──
+    // In-memory activity state stored on the room object itself
+
+    // Spotify
+    socket.on('activity:spotify:set', ({ code, spotifyUrl }) => {
+      if (rooms[code]) rooms[code].spotify = { spotifyUrl };
+      io.to(code).emit('activity:spotify:sync', { spotifyUrl });
+    });
+
+    // YouTube
+    socket.on('activity:youtube:set', ({ code, videoId }) => {
+      if (rooms[code]) rooms[code].youtube = { videoId, playing: false, time: 0, updatedAt: Date.now() };
+      io.to(code).emit('activity:youtube:sync', rooms[code].youtube);
+    });
+    socket.on('activity:youtube:state', ({ code, playing, time }) => {
+      if (rooms[code]?.youtube) {
+        Object.assign(rooms[code].youtube, { playing, time, updatedAt: Date.now() });
+      }
+      socket.to(code).emit('activity:youtube:state', { playing, time });
+    });
+
+    // Poll
+    socket.on('activity:poll:create', ({ code, question, options }) => {
+      const votes: Record<number, string[]> = {};
+      options.forEach((_: any, i: number) => votes[i] = []);
+      if (rooms[code]) rooms[code].poll = { question, options, votes, closed: false };
+      io.to(code).emit('activity:poll:state', rooms[code].poll);
+    });
+    socket.on('activity:poll:vote', ({ code, userId, optionIndex }) => {
+      const poll = rooms[code]?.poll;
+      if (!poll || poll.closed) return;
+      // Remove previous vote from this user
+      Object.values(poll.votes).forEach((arr: any) => {
+        const idx = arr.indexOf(userId);
+        if (idx !== -1) arr.splice(idx, 1);
+      });
+      poll.votes[optionIndex].push(userId);
+      io.to(code).emit('activity:poll:state', poll);
+    });
+    socket.on('activity:poll:close', ({ code }) => {
+      if (rooms[code]?.poll) rooms[code].poll.closed = true;
+      io.to(code).emit('activity:poll:state', rooms[code].poll);
+    });
+
+    // Whiteboard
+    socket.on('activity:whiteboard:draw', ({ code, stroke }) => {
+      socket.to(code).emit('activity:whiteboard:draw', stroke);
+    });
+    socket.on('activity:whiteboard:clear', ({ code }) => {
+      io.to(code).emit('activity:whiteboard:clear');
+    });
+
+    // Quiz
+    socket.on('activity:quiz:create', ({ code, questions }) => {
+      if (rooms[code]) rooms[code].quiz = { questions, current: 0, answers: {}, scores: {}, state: 'waiting' };
+      io.to(code).emit('activity:quiz:state', rooms[code].quiz);
+    });
+    socket.on('activity:quiz:start', ({ code }) => {
+      if (rooms[code]?.quiz) rooms[code].quiz.state = 'question';
+      io.to(code).emit('activity:quiz:state', rooms[code].quiz);
+    });
+    socket.on('activity:quiz:answer', ({ code, userId, userName, questionIndex, optionIndex }) => {
+      const quiz = rooms[code]?.quiz;
+      if (!quiz) return;
+      if (!quiz.answers[questionIndex]) quiz.answers[questionIndex] = {};
+      if (quiz.answers[questionIndex][userId]) return; // already answered
+      quiz.answers[questionIndex][userId] = optionIndex;
+      const correct = quiz.questions[questionIndex]?.correct;
+      if (optionIndex === correct) {
+        quiz.scores[userId] = (quiz.scores[userId] || 0) + 1;
+      }
+      io.to(code).emit('activity:quiz:state', quiz);
+    });
+    socket.on('activity:quiz:next', ({ code }) => {
+      const quiz = rooms[code]?.quiz;
+      if (!quiz) return;
+      quiz.current += 1;
+      quiz.state = quiz.current < quiz.questions.length ? 'question' : 'done';
+      io.to(code).emit('activity:quiz:state', quiz);
+    });
+
+    // Tasks
+    socket.on('activity:tasks:update', ({ code, tasks }) => {
+      if (rooms[code]) rooms[code].tasks = tasks;
+      socket.to(code).emit('activity:tasks:state', tasks);
+    });
+    socket.on('activity:tasks:sync', ({ code }) => {
+      if (rooms[code]?.tasks) socket.emit('activity:tasks:state', rooms[code].tasks);
+    });
+
+    // Activity: join (get current state)
+    socket.on('activity:join', ({ code }) => {
+      const room = rooms[code];
+      if (!room) return;
+      if (room.spotify) socket.emit('activity:spotify:sync', room.spotify);
+      if (room.youtube) socket.emit('activity:youtube:sync', room.youtube);
+      if (room.poll) socket.emit('activity:poll:state', room.poll);
+      if (room.tasks) socket.emit('activity:tasks:state', room.tasks);
+      if (room.quiz) socket.emit('activity:quiz:state', room.quiz);
+    });
+
     socket.on("disconnect", () => {
       Object.keys(rooms).forEach(code => {
         const room = rooms[code];
