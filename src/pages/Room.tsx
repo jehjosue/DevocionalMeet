@@ -690,14 +690,6 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
             </div>
           )}
 
-          {/* Flip icon */}
-          <button style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-            <IcFlip />
-          </button>
-          {/* Speaker */}
-          <button style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-            <IcSpeaker />
-          </button>
         </div>
 
         {/* ── Layout toggle ── */}
@@ -1173,6 +1165,28 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                   ].map(item => (
                     <MenuIconBtn key={item.label} icon={item.icon} label={item.label} />
                   ))}
+                </div>
+
+                {/* Device settings (Moved from Top Bar) */}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button style={{
+                    flex: 1, padding: "12px 4px",
+                    background: "#2A3942", border: "none", borderRadius: 12,
+                    cursor: "pointer", display: "flex", flexDirection: "column",
+                    alignItems: "center", gap: 6,
+                  }}>
+                    <span style={{ fontSize: "1.4rem", color: "#E9EDEF", display: "flex", alignItems: "center", justifyContent: "center", height: "30px" }}><IcFlip /></span>
+                    <span style={{ fontSize: "0.62rem", color: "#8696A0", textAlign: "center", lineHeight: 1.3 }}>Virar Câmera</span>
+                  </button>
+                  <button style={{
+                    flex: 1, padding: "12px 4px",
+                    background: "#2A3942", border: "none", borderRadius: 12,
+                    cursor: "pointer", display: "flex", flexDirection: "column",
+                    alignItems: "center", gap: 6,
+                  }}>
+                    <span style={{ fontSize: "1.4rem", color: "#E9EDEF", display: "flex", alignItems: "center", justifyContent: "center", height: "30px" }}><IcSpeaker /></span>
+                    <span style={{ fontSize: "0.62rem", color: "#8696A0", textAlign: "center", lineHeight: 1.3 }}>Saída de Áudio</span>
+                  </button>
                 </div>
               </div>
             </div>
