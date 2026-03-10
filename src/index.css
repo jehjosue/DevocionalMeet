@@ -72,6 +72,11 @@ body {
   transition: background-color var(--transition), color var(--transition);
   @apply antialiased overflow-x-hidden;
   min-height: 100vh;
+  /* Specific fullscreen fixes */
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 /* ─────────────────────────────────────────────

@@ -435,6 +435,13 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     socket.emit('room:join', { code: roomName, userId, userName });
 
     const init = async () => {
+      // Fullscreen request
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => { });
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        (document.documentElement as any).webkitRequestFullscreen();
+      }
+
       const failTO = setTimeout(() => setConnectionError("Demora na conexão. Verifique permissões de câmera/microfone."), 15000);
       try {
         client.enableAudioVolumeIndicator();
