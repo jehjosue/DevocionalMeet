@@ -5,6 +5,9 @@ import http from "http";
 import { Server } from "socket.io";
 import dotenv from "dotenv";
 import { randomBytes } from "crypto";
+import session from "express-session";
+import axios from "axios";
+import cookieParser from "cookie-parser";
 const nanoid = (size = 12) => randomBytes(size).toString('base64url').slice(0, size);
 dotenv.config();
 
@@ -28,6 +31,11 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
   credentials: true,
 };
+
+// Spotify Config
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || 'ae7effd03f1d4bc2a3e958a142b14512';
+const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || '33ca41fd0593421f86679396c122acff';
+const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || 'https://devocionalmeet.shop/callback';
 
 // Banco em memória para salas e sessões de música
 const rooms: Record<string, any> = {};
@@ -58,6 +66,17 @@ async function startServer() {
   });
 
   app.use(express.json());
+  app.use(cookieParser());
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'dmeet-secret-key-spotify',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 horas
+    }
+  }));
 
   // Rotas de Salas
   app.post('/rooms/create', (req, res) => {
@@ -179,9 +198,12 @@ async function startServer() {
     // In-memory activity state stored on the room object itself
 
     // Spotify
-    socket.on('activity:spotify:set', ({ code, spotifyUrl }) => {
-      if (rooms[code]) rooms[code].spotify = { spotifyUrl };
-      io.to(code).emit('activity:spotify:sync', { spotifyUrl });
+    socket.on('activity:spotify:set', ({ code, ...data }) => {
+      if (rooms[code]) {
+        if (!rooms[code].spotify) rooms[code].spotify = {};
+        Object.assign(rooms[code].spotify, data);
+      }
+      io.to(code).emit('activity:spotify:sync', rooms[code].spotify);
     });
 
     // YouTube
@@ -286,6 +308,85 @@ async function startServer() {
         }
       });
     });
+  });
+
+  // ── Spotify OAuth ──
+  app.get('/auth/spotify', (req, res) => {
+    const scope = "streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state";
+    const state = randomBytes(16).toString('hex');
+    const auth_query_parameters = new URLSearchParams({
+      response_type: "code",
+      client_id: SPOTIFY_CLIENT_ID,
+      scope: scope,
+      redirect_uri: SPOTIFY_REDIRECT_URI,
+      state: state
+    });
+    res.redirect(`https://accounts.spotify.com/authorize/?${auth_query_parameters.toString()}`);
+  });
+
+  app.get('/callback', async (req, res) => {
+    const code = req.query.code;
+    try {
+      const response = await axios({
+        method: 'POST',
+        url: 'https://accounts.spotify.com/api/token',
+        data: new URLSearchParams({
+          code: code as string,
+          redirect_uri: SPOTIFY_REDIRECT_URI,
+          grant_type: 'authorization_code'
+        }).toString(),
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(SPOTIFY_CLIENT_ID + ':' + SPOTIFY_CLIENT_SECRET).toString('base64'),
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+
+      if (response.status === 200) {
+        (req.session as any).spotify_access_token = response.data.access_token;
+        (req.session as any).spotify_refresh_token = response.data.refresh_token;
+        res.redirect('/');
+      } else {
+        res.redirect('/?error=spotify_auth_failed');
+      }
+    } catch (error) {
+      console.error('Spotify Auth error:', error);
+      res.redirect('/?error=spotify_server_error');
+    }
+  });
+
+  app.get('/auth/spotify/token', (req, res) => {
+    const token = (req.session as any).spotify_access_token;
+    res.json({ access_token: token || null });
+  });
+
+  app.get('/auth/spotify/refresh', async (req, res) => {
+    const refresh_token = (req.session as any).spotify_refresh_token;
+    if (!refresh_token) return res.status(400).json({ error: 'No refresh token' });
+
+    try {
+      const response = await axios({
+        method: 'POST',
+        url: 'https://accounts.spotify.com/api/token',
+        data: new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refresh_token
+        }).toString(),
+        headers: {
+          'Authorization': 'Basic ' + Buffer.from(SPOTIFY_CLIENT_ID + ':' + SPOTIFY_CLIENT_SECRET).toString('base64'),
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+
+      if (response.status === 200) {
+        (req.session as any).spotify_access_token = response.data.access_token;
+        res.json({ access_token: response.data.access_token });
+      } else {
+        res.status(400).json({ error: 'Refresh failed' });
+      }
+    } catch (error) {
+      console.error('Spotify Refresh error:', error);
+      res.status(500).json({ error: 'Server error during refresh' });
+    }
   });
 
   app.use(express.json());
