@@ -189,9 +189,26 @@ export default function Home() {
     }
   };
 
+  const enterFullscreen = () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(err => console.warn(err));
+        } else if ((document.documentElement as any).webkitRequestFullscreen) {
+          (document.documentElement as any).webkitRequestFullscreen();
+        } else if ((document.documentElement as any).msRequestFullscreen) {
+          (document.documentElement as any).msRequestFullscreen();
+        }
+      }
+    } catch (e) {
+      console.warn("Fullscreen API failed", e);
+    }
+  };
+
   // Opção 2 — Iniciar reunião agora (entrar direto)
   const handleStartNow = async () => {
     setShowMenu(false);
+    enterFullscreen();
 
     const name = userName.trim();
     if (!name) {
@@ -249,7 +266,7 @@ export default function Home() {
       localStorage.setItem('dmeet_role', 'leader');
       localStorage.setItem('dmeet_roomCode', data.code);
 
-      window.location.href = `/room/${data.code}?host=true`;
+      navigate(`/room/${data.code}?host=true`);
 
     } catch (err: any) {
       console.error('[DM] Fetch error:', err.name, err.message);
@@ -284,7 +301,8 @@ export default function Home() {
     }
     finalCode = finalCode.split("?")[0];
 
-    window.location.href = `/room/${finalCode}`;
+    enterFullscreen();
+    navigate(`/room/${finalCode}`);
   };
 
   return (

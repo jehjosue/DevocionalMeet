@@ -630,6 +630,22 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     );
   }
 
+  const enterFullscreen = () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(err => console.warn(err));
+        } else if ((document.documentElement as any).webkitRequestFullscreen) {
+          (document.documentElement as any).webkitRequestFullscreen();
+        } else if ((document.documentElement as any).msRequestFullscreen) {
+          (document.documentElement as any).msRequestFullscreen();
+        }
+      }
+    } catch (e) {
+      console.warn("Fullscreen API failed", e);
+    }
+  };
+
   return (
     <>
       {/* ── Global styles ── */}
@@ -671,14 +687,16 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       `}</style>
 
       {/* ── Root wrapper ── */}
-      <div style={{
-        width: "100vw", height: "100vh",
-        background: "#000000",
-        display: "flex", flexDirection: "column",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        overflow: "hidden", position: "relative",
-        color: "#E9EDEF",
-      }}>
+      <div
+        onClick={enterFullscreen}
+        style={{
+          width: "100vw", height: "100vh",
+          background: "#000000",
+          display: "flex", flexDirection: "column",
+          fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+          overflow: "hidden", position: "relative",
+          color: "#E9EDEF",
+        }}>
 
         {/* ── Floating reactions ── */}
         {floatEmojis.map(r => (
