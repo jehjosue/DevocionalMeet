@@ -41,7 +41,7 @@ export function useRoom() {
         setIsCreating(true);
         setError(null);
         try {
-            const res = await fetch('/rooms/create', {
+            const res = await fetch(`${SOCKET_URL}/rooms/create`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId, userName }),
@@ -62,7 +62,7 @@ export function useRoom() {
     const joinRoom = useCallback(async (code: string, userId: string, userName: string) => {
         setError(null);
         try {
-            const res = await fetch(`/rooms/${code}`);
+            const res = await fetch(`${SOCKET_URL}/rooms/${code}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
             setRoom({ ...data, code });
