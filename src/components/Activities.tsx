@@ -1,4 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+    BarChart3,
+    Edit3,
+    Trophy,
+    ClipboardCheck,
+    Search,
+    Users,
+    Layout,
+    Brain,
+    Palette
+} from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface PollState { question: string; options: string[]; votes: Record<number, string[]>; closed: boolean; }
@@ -20,12 +31,54 @@ export default function Activities({ isOpen, onClose, roomId, userName, socket, 
     if (!isOpen) return null;
 
     const apps = [
-        { id: 'spotify', name: 'Spotify', icon: '🎵', desc: 'Ouça com todos', color: '#1DB954' },
-        { id: 'youtube', name: 'YouTube', icon: '▶️', desc: 'Assista juntos', color: '#FF0000' },
-        { id: 'poll', name: 'Enquete', icon: '📊', desc: 'Crie uma votação', color: '#4285F4' },
-        { id: 'whiteboard', name: 'Whiteboard', icon: '🖊️', desc: 'Colabore ao vivo', color: '#FBBC04' },
-        { id: 'quiz', name: 'Quiz', icon: '🎯', desc: 'Teste o grupo', color: '#EA4335' },
-        { id: 'tasks', name: 'Tarefas', icon: '✅', desc: 'Lista colaborativa', color: '#34A853' },
+        {
+            id: 'spotify',
+            name: 'Spotify',
+            icon: 'https://upload.wikimedia.org/wikipedia/commons/1/19/Spotify_logo_without_text.svg',
+            type: 'image',
+            desc: 'Ouça com todos',
+            color: '#1DB954'
+        },
+        {
+            id: 'youtube',
+            name: 'YouTube',
+            icon: 'https://upload.wikimedia.org/wikipedia/commons/0/09/YouTube_full-color_icon_%282017%29.svg',
+            type: 'image',
+            desc: 'Assista juntos',
+            color: '#FF0000'
+        },
+        {
+            id: 'poll',
+            name: 'Enquete',
+            icon: <BarChart3 size={48} color="#4285F4" />,
+            type: 'lucide',
+            desc: 'Crie uma votação',
+            color: '#4285F4'
+        },
+        {
+            id: 'whiteboard',
+            name: 'Whiteboard',
+            icon: <Palette size={48} color="#FBBC04" />,
+            type: 'lucide',
+            desc: 'Colabore ao vivo',
+            color: '#FBBC04'
+        },
+        {
+            id: 'quiz',
+            name: 'Quiz',
+            icon: <Trophy size={48} color="#EA4335" />,
+            type: 'lucide',
+            desc: 'Teste o grupo',
+            color: '#EA4335'
+        },
+        {
+            id: 'tasks',
+            name: 'Tarefas',
+            icon: <ClipboardCheck size={48} color="#34A853" />,
+            type: 'lucide',
+            desc: 'Lista colaborativa',
+            color: '#34A853'
+        },
     ];
 
     const currentApp = apps.find(a => a.id === view);
@@ -62,22 +115,47 @@ export default function Activities({ isOpen, onClose, roomId, userName, socket, 
                 {/* Content */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: view === 'grid' ? 14 : 0 }}>
                     {view === 'grid' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, paddingBottom: 20 }}>
                             {apps.map(app => (
                                 <div
                                     key={app.id}
                                     onPointerDown={() => setView(app.id)}
                                     style={{
-                                        padding: 16, borderRadius: 16,
-                                        background: 'rgba(255,255,255,0.04)',
-                                        border: '1.5px solid rgba(255,255,255,0.07)',
+                                        padding: '24px 16px', borderRadius: 20,
+                                        background: 'rgba(255,255,255,0.03)',
+                                        border: '1px solid rgba(255,255,255,0.08)',
                                         cursor: 'pointer', touchAction: 'manipulation',
-                                        display: 'flex', flexDirection: 'column', gap: 6,
+                                        display: 'flex', flexDirection: 'column', gap: 12,
+                                        alignItems: 'center', textAlign: 'center',
+                                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                                        e.currentTarget.style.transform = 'translateY(0)';
                                     }}
                                 >
-                                    <span style={{ fontSize: '1.6rem' }}>{app.icon}</span>
-                                    <div style={{ fontWeight: 700, fontSize: '0.88rem', color: app.color }}>{app.name}</div>
-                                    <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)' }}>{app.desc}</div>
+                                    <div style={{
+                                        width: 60, height: 60,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        background: 'rgba(255,255,255,0.02)',
+                                        borderRadius: 16, marginBottom: 4
+                                    }}>
+                                        {app.type === 'image' ? (
+                                            <img src={app.icon as string} alt={app.name} style={{ width: 44, height: 44, objectFit: 'contain' }} />
+                                        ) : (
+                                            app.icon
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        <div style={{ fontWeight: 800, fontSize: '0.9rem', color: app.color, letterSpacing: '0.02em' }}>{app.name}</div>
+                                        <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.3, maxWidth: 120 }}>{app.desc}</div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
