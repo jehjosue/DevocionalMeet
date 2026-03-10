@@ -688,7 +688,6 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
       {/* ── Root wrapper ── */}
       <div
-        onClick={enterFullscreen}
         style={{
           width: "100vw", height: "100vh",
           background: "#000000",
@@ -876,20 +875,24 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
           {/* Participantes */}
           <button
-            onClick={() => { setShowParticipants(p => !p); setShowMenu(false); setActivitiesOpen(false); }}
+            onPointerDown={() => { setShowParticipants(p => !p); setShowMenu(false); setActivitiesOpen(false); }}
             style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '14px',
+              width: '62px',
+              height: '62px',
+              borderRadius: '20px',
               background: showParticipants ? '#BBDEFB' : '#3A3A3C',
               border: 'none',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'all 0.18s ease',
+              transition: 'background 0.1s ease, transform 0.08s ease',
               position: 'relative',
-              flexShrink: 0
+              flexShrink: 0,
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'transparent',
+              userSelect: 'none',
+              outline: 'none',
             }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24"
@@ -1588,21 +1591,27 @@ function Btn({ active, defaultBg = "#3A3A3C", activeBg, activeColor, defaultColo
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => { setPressed(false); onClick?.(); }}
       onPointerLeave={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
       style={{
         width: "62px",
         height: "62px",
         borderRadius: "20px",
-        background: active ? activeBg : defaultBg,
+        background: active
+          ? activeBg
+          : pressed ? "#525254" : defaultBg,
         border: "none",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         color: active ? activeColor : defaultColor,
-        transform: pressed ? "scale(0.91)" : "scale(1)",
-        transition: "transform 0.12s ease, background 0.15s ease, color 0.15s ease",
+        transform: pressed ? "scale(0.88)" : "scale(1)",
+        transition: "transform 0.08s ease, background 0.1s ease, color 0.1s ease",
         WebkitTapHighlightColor: "transparent",
+        touchAction: "manipulation",
+        userSelect: "none",
         flexShrink: 0,
+        outline: "none",
       }}
     >
       {children}
