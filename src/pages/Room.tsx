@@ -358,6 +358,82 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       setRemoteUsers(prev => prev.map(u => String(u.uid) === String(uid) ? { ...u, name } : u));
     });
 
+    // ── Room presence and host controls ──
+    socket.on('room:participantJoined', ({ participant }: any) => {
+      setParticipants(prev => {
+        const exists = prev.find(p => p.userId === participant.userId);
+        if (exists) return prev;
+        return [...prev, participant];
+      });
+    });
+
+    socket.on('room:participantLeft', ({ userId: leftId }: any) => {
+      setParticipants(prev => prev.filter(p => p.userId !== leftId));
+    });
+
+    socket.on('room:synced', ({ participants: synced }: any) => {
+      setParticipants(synced);
+    });
+
+    socket.on('room:mutedByHost', ({ muted, all, userId: targetId }: any) => {
+      if (all) {
+        setAllMuted(muted);
+        if (muted) {
+          localAudioTrackRef.current?.setEnabled(false);
+          setMicOn(false);
+        } else {
+          localAudioTrackRef.current?.setEnabled(true);
+          setMicOn(true);
+        }
+      } else if (targetId === userId) {
+        if (muted) {
+          localAudioTrackRef.current?.setEnabled(false);
+          setMicOn(false);
+        } else {
+          localAudioTrackRef.current?.setEnabled(true);
+          setMicOn(true);
+        }
+        setMutedParticipants(prev =>
+          muted ? (prev.includes(userId) ? prev : [...prev, userId]) : prev.filter(id => id !== userId)
+        );
+      } else {
+        setMutedParticipants(prev =>
+          muted ? (prev.includes(targetId) ? prev : [...prev, targetId]) : prev.filter(id => id !== targetId)
+        );
+      }
+    });
+
+    socket.on('room:videoDisabledByHost', ({ disabled, all, userId: targetId }: any) => {
+      if (all) {
+        setAllVideoDisabled(disabled);
+        if (disabled) {
+          localVideoTrackRef.current?.setEnabled(false);
+          setVideoOn(false);
+        } else {
+          localVideoTrackRef.current?.setEnabled(true);
+          setVideoOn(true);
+        }
+      } else if (targetId === userId) {
+        if (disabled) {
+          localVideoTrackRef.current?.setEnabled(false);
+          setVideoOn(false);
+        } else {
+          localVideoTrackRef.current?.setEnabled(true);
+          setVideoOn(true);
+        }
+        setVideoDisabledParticipants(prev =>
+          disabled ? (prev.includes(userId) ? prev : [...prev, userId]) : prev.filter(id => id !== userId)
+        );
+      } else {
+        setVideoDisabledParticipants(prev =>
+          disabled ? (prev.includes(targetId) ? prev : [...prev, targetId]) : prev.filter(id => id !== targetId)
+        );
+      }
+    });
+
+    // Announce self to room
+    socket.emit('room:join', { code: roomName, userId, userName });
+
     const init = async () => {
       const failTO = setTimeout(() => setConnectionError("Demora na conexão. Verifique permissões de câmera/microfone."), 15000);
       try {
@@ -419,7 +495,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       clientRef.current?.leave().catch(console.error);
       socketRef.current?.disconnect();
     };
-  }, [roomName]);
+  }, [roomName, userId, userName]);
 
   // Chat auto-scroll
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -537,80 +613,9 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     }),
   ];
 
-  // Join room and sync participants
-  useEffect(() => {
-    if (!socketRef.current || !roomName) return;
-    const socket = socketRef.current;
-
-    socket.on('room:participantJoined', ({ participant, total }: any) => {
-      setParticipants(prev => {
-        const exists = prev.find(p => p.userId === participant.userId);
-        if (exists) return prev;
-        return [...prev, participant];
-      });
-    });
-
-    socket.on('room:participantLeft', ({ userId, total }: any) => {
-      setParticipants(prev => prev.filter(p => p.userId !== userId));
-    });
-
-    socket.on('room:synced', ({ participants }: any) => {
-      setParticipants(participants);
-    });
-
-    socket.on('room:mutedByHost', ({ muted, all, userId: targetUserId }: any) => {
-      if (all) {
-        setAllMuted(muted);
-        if (muted) {
-          localAudioTrackRef.current?.setEnabled(false);
-          setMicOn(false);
-        }
-      } else if (targetUserId === userId) {
-        if (muted) {
-          localAudioTrackRef.current?.setEnabled(false);
-          setMicOn(false);
-          setMutedParticipants(prev => prev.includes(userId) ? prev : [...prev, userId]);
-        } else {
-          setMutedParticipants(prev => prev.filter(id => id !== userId));
-        }
-      } else {
-        // Atualiza estado de outros participantes (opcional para UI)
-        if (muted) setMutedParticipants(prev => prev.includes(targetUserId) ? prev : [...prev, targetUserId]);
-        else setMutedParticipants(prev => prev.filter(id => id !== targetUserId));
-      }
-    });
-
-    socket.on('room:videoDisabledByHost', ({ disabled, all, userId: targetUserId }: any) => {
-      if (all) {
-        setAllVideoDisabled(disabled);
-        if (disabled) {
-          localVideoTrackRef.current?.setEnabled(false);
-          setVideoOn(false);
-        }
-      } else if (targetUserId === userId) {
-        if (disabled) {
-          localVideoTrackRef.current?.setEnabled(false);
-          setVideoOn(false);
-          setVideoDisabledParticipants(prev => prev.includes(userId) ? prev : [...prev, userId]);
-        } else {
-          setVideoDisabledParticipants(prev => prev.filter(id => id !== userId));
-        }
-      } else {
-        if (disabled) setVideoDisabledParticipants(prev => prev.includes(targetUserId) ? prev : [...prev, targetUserId]);
-        else setVideoDisabledParticipants(prev => prev.filter(id => id !== targetUserId));
-      }
-    });
-
-    socket.emit('room:join', { code: roomName, userId, userName });
-
-    return () => {
-      socket.off('room:participantJoined');
-      socket.off('room:participantLeft');
-      socket.off('room:synced');
-      socket.off('room:mutedByHost');
-      socket.off('room:videoDisabledByHost');
-    };
-  }, [roomName, userId, userName]);
+  // ── Keep participants list in sync (separate effect for socket-ref safety) ──
+  // NOTE: All socket event listeners are now registered inside the main init useEffect above.
+  // This useEffect is intentionally left empty except for the 'isAlone' derived state.
 
   // Condição para exibir tela de espera (Google Meet style)
   const isAlone = participants.length <= 1;
