@@ -9,10 +9,12 @@ interface Participant {
 interface VideoGridProps {
     participants: Participant[];
     userId: string;
+    remoteUsers: any; // Agora remote users with tracks
+    localVideoTrack?: any;
     localVideoRef: React.RefObject<HTMLDivElement>;
 }
 
-export default function VideoGrid({ participants, userId, localVideoRef }: VideoGridProps) {
+export default function VideoGrid({ participants, userId, remoteUsers, localVideoTrack, localVideoRef }: VideoGridProps) {
     const count = participants.length;
 
     const getGridStyle = (): React.CSSProperties => {
@@ -65,6 +67,7 @@ export default function VideoGrid({ participants, userId, localVideoRef }: Video
                         key={p.userId}
                         participant={p}
                         isLocal={isLocal}
+                        videoTrack={isLocal ? localVideoTrack : remoteUsers[p.userId]?.videoTrack}
                         localVideoRef={isLocal ? localVideoRef : undefined}
                         style={specialStyle}
                     />

@@ -233,6 +233,9 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const [mutedParticipants, setMutedParticipants] = useState<string[]>([]);
   const [allVideoDisabled, setAllVideoDisabled] = useState(false);
   const [videoDisabledParticipants, setVideoDisabledParticipants] = useState<string[]>([]);
+  const [showModeratorPanel, setShowModeratorPanel] = useState(false);
+  const [showPWABanner, setShowPWABanner] = useState(false);
+  const [socketObj, setSocketObj] = useState<Socket | null>(null);
 
   // ── Refs ──
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -307,6 +310,15 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
     const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
     socketRef.current = socket;
+    setSocketObj(socket);
+
+    // PWA Banner Logic
+    const hasSeenBanner = localStorage.getItem('dmeet_pwa_banner');
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+    if (isIOS && !isStandalone && !hasSeenBanner) {
+      setShowPWABanner(true);
+    }
 
     socket.on("chat_message", (payload: ChatMsg) => setMessages(prev => [...prev, payload]));
     socket.on("raise_hand", (data: { uid: string | number; isRaised: boolean; timestamp: number }) => {
@@ -752,9 +764,14 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
             ))}
           </div>
 
-          {/* Group name */}
-          <div style={{ flex: 1, marginLeft: 28 }}>
-            <div style={{ fontSize: "0.92rem", fontWeight: 600, color: "#E9EDEF" }}>{groupName}</div>
+          {/* Group name / Leader info */}
+          <div
+            onClick={() => isHost && setShowModeratorPanel(p => !p)}
+            style={{ flex: 1, marginLeft: 28, cursor: isHost ? 'pointer' : 'default' }}
+          >
+            <div style={{ fontSize: "0.92rem", fontWeight: 600, color: "#E9EDEF", display: 'flex', alignItems: 'center', gap: 6 }}>
+              {groupName} {isHost && <span style={{ fontSize: '0.7rem', color: '#FF7A00' }}>▼</span>}
+            </div>
             <div style={{ fontSize: "0.65rem", color: "#8696A0" }}>
               {totalParticipants} participante{totalParticipants !== 1 ? "s" : ""}
             </div>
@@ -808,6 +825,8 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
               { userId, userName: 'Você' } // Local user always last
             ]}
             userId={userId}
+            remoteUsers={Object.fromEntries(remoteUsers.map(u => [u.uid, u]))}
+            localVideoTrack={localVideoTrackRef.current}
             localVideoRef={localVideoPipRef}
           />
         </div>
@@ -1420,10 +1439,71 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
           onClose={() => setActivitiesOpen(false)}
           roomId={roomName}
           userName={userName}
-          socket={socketRef.current}
+          socket={socketObj}
           isHost={isHost}
           userId={userId}
         />
+
+        {/* ── PWA Banner ── */}
+        <AnimatePresence>
+          {showPWABanner && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              style={{
+                position: 'fixed', bottom: 100, left: 20, right: 20,
+                background: '#2563EB', color: '#fff', padding: '16px',
+                borderRadius: '16px', zIndex: 1000, boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                display: 'flex', flexDirection: 'column', gap: 10
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>✨ Melhor experiência</span>
+                <button onClick={() => { setShowPWABanner(false); localStorage.setItem('dmeet_pwa_banner', 'true'); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.2rem' }}>✕</button>
+              </div>
+              <p style={{ fontSize: '0.8rem', margin: 0, lineHeight: 1.4 }}>
+                Para tela cheia: toque em <span style={{ fontSize: '1.1rem' }}>📤</span> e depois em <b>"Adicionar à Tela de Início"</b>.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Moderator Quick Panel ── */}
+        <AnimatePresence>
+          {showModeratorPanel && (
+            <>
+              <div onClick={() => setShowModeratorPanel(false)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: -20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: -20 }}
+                style={{
+                  position: 'fixed', top: 80, right: 20,
+                  background: '#1F2C34', borderRadius: '16px', padding: '12px',
+                  zIndex: 901, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  width: '240px', display: 'flex', flexDirection: 'column', gap: 8
+                }}
+              >
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#8696A0', padding: '4px 8px' }}>PAINEL DO LÍDER</div>
+                <button onClick={handleMuteAll} style={{
+                  width: '100%', padding: '12px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)',
+                  border: '1.5px solid rgba(239,68,68,0.3)', color: '#EF4444', fontWeight: 600, fontSize: '0.85rem',
+                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer'
+                }}>
+                  <IconMic muted={true} /> Mutar todos
+                </button>
+                <button onClick={handleDisableVideoAll} style={{
+                  width: '100%', padding: '12px', borderRadius: '12px', background: 'rgba(239,68,68,0.1)',
+                  border: '1.5px solid rgba(239,68,68,0.3)', color: '#EF4444', fontWeight: 600, fontSize: '0.85rem',
+                  display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer'
+                }}>
+                  <IconCamera off={true} /> Desligar câmeras
+                </button>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );

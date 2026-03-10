@@ -353,6 +353,8 @@ body {
   border-radius: 20px;
   z-index: 50;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 

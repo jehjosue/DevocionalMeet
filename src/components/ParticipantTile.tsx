@@ -8,6 +8,7 @@ interface ParticipantTileProps {
         userName: string;
     };
     isLocal?: boolean;
+    videoTrack?: any; // Agora Track
     localVideoRef?: React.RefObject<HTMLDivElement>;
     isSpeaking?: boolean;
     isMuted?: boolean;
@@ -19,6 +20,7 @@ interface ParticipantTileProps {
 export default function ParticipantTile({
     participant,
     isLocal,
+    videoTrack,
     localVideoRef,
     isSpeaking,
     isMuted,
@@ -38,26 +40,20 @@ export default function ParticipantTile({
         >
             {/* Video or Avatar */}
             <div className="w-full h-full flex items-center justify-center">
-                {isLocal ? (
-                    isCameraOff ? (
-                        <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center">
-                            <User className="w-10 h-10 text-gray-400" />
-                        </div>
-                    ) : (
-                        <div
-                            ref={localVideoRef}
-                            style={{
-                                width: '100%',
-                                height: '100%',
-                                overflow: 'hidden',
-                                transform: 'scaleX(-1)' // Mirror local video container
-                            }}
-                        />
-                    )
-                ) : (
+                {isCameraOff ? (
                     <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center">
                         <User className="w-10 h-10 text-gray-400" />
                     </div>
+                ) : (
+                    <div
+                        ref={isLocal ? localVideoRef : (el) => { if (el && videoTrack) videoTrack.play(el); }}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            overflow: 'hidden',
+                            transform: isLocal ? 'scaleX(-1)' : 'none'
+                        }}
+                    />
                 )}
             </div>
 
