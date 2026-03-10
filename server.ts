@@ -8,6 +8,7 @@ import { randomBytes } from "crypto";
 import session from "express-session";
 import axios from "axios";
 import cookieParser from "cookie-parser";
+
 const nanoid = (size = 12) => randomBytes(size).toString('base64url').slice(0, size);
 dotenv.config();
 
@@ -32,9 +33,9 @@ const corsOptions = {
   credentials: true,
 };
 
-// Spotify Config
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID || 'ae7effd03f1d4bc2a3e958a142b14512';
-const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET || '33ca41fd0593421f86679396c122acff';
+// Spotify Config — MUST be set via environment variables, never hardcoded
+const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID!;
+const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET!;
 const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || 'https://devocionalmeet.shop/callback';
 
 // Banco em memória para salas e sessões de música
