@@ -304,8 +304,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
   // ── Agora + Socket init ──
   useEffect(() => {
-    if (!roomName) return;
-    if (!searchParams.get("nome")) { navigate(`/?roomId=${roomName}`); return; }
+    if (!userName) { navigate(`/?roomId=${roomName}`); return; }
 
     const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
     socketRef.current = socket;
