@@ -339,14 +339,15 @@ async function startServer() {
   app.get('/auth/spotify', (req, res) => {
     const scope = "streaming user-read-email user-read-private user-modify-playback-state user-read-playback-state";
     const state = randomBytes(16).toString('hex');
-    const auth_query_parameters = new URLSearchParams({
+    const params = new URLSearchParams({
       response_type: "code",
       client_id: SPOTIFY_CLIENT_ID,
-      scope: scope,
+      scope,
       redirect_uri: SPOTIFY_REDIRECT_URI,
-      state: state
+      state,
     });
-    res.redirect(`https://accounts.spotify.com/authorize/?${auth_query_parameters.toString()}`);
+    // Retorna a URL em vez de redirecionar — frontend abre em popup
+    res.json({ url: `https://accounts.spotify.com/authorize/?${params.toString()}` });
   });
 
   app.get('/callback', async (req, res) => {
