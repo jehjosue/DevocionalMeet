@@ -36,6 +36,18 @@ export default function ParticipantTile({
         const container = remoteVideoRef.current;
         if (container.querySelector('video')) return;
         videoTrack.play(container);
+        setTimeout(() => {
+            const vid = container.querySelector('video') as HTMLVideoElement;
+            if (vid) {
+                vid.style.transform = 'none';
+                vid.style.webkitTransform = 'none';
+            }
+            const wrap = container.querySelector('div');
+            if (wrap) {
+                wrap.style.transform = 'none';
+                wrap.style.webkitTransform = 'none';
+            }
+        }, 150);
     }, [videoTrack, isLocal]);
 
     useEffect(() => {
@@ -46,10 +58,18 @@ export default function ParticipantTile({
             videoTrack.play(container);
             setTimeout(() => {
                 const vid = container.querySelector('video') as HTMLVideoElement;
-                if (vid) vid.style.cssText = 'width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;';
+                if (vid) {
+                    vid.style.cssText = 'width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;';
+                    vid.style.transform = 'none';
+                    vid.style.webkitTransform = 'none';
+                }
                 const wrap = container.querySelector('div');
-                if (wrap) wrap.style.cssText = 'width:100%!important;height:100%!important;position:absolute!important;top:0!important;left:0!important;';
-            }, 100);
+                if (wrap) {
+                    wrap.style.cssText = 'width:100%!important;height:100%!important;position:absolute!important;top:0!important;left:0!important;';
+                    wrap.style.transform = 'none';
+                    wrap.style.webkitTransform = 'none';
+                }
+            }, 150);
         } catch (e) {
             console.warn('vídeo local:', e);
         }
@@ -73,10 +93,11 @@ export default function ParticipantTile({
                     <div
                         ref={isLocal ? localVideoRef : remoteVideoRef}
                         style={{
+                            position: 'absolute',
+                            inset: 0,
                             width: '100%',
                             height: '100%',
-                            overflow: 'hidden',
-                            transform: isLocal ? 'scaleX(-1)' : 'none'
+                            transform: 'none',
                         }}
                     />
                 )}
