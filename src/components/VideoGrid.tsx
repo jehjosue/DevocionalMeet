@@ -9,7 +9,7 @@ interface Participant {
 interface VideoGridProps {
     participants: Participant[];
     userId: string;
-    remoteUsers: any; // Agora remote users with tracks
+    remoteUsers: Record<string, any>; // Agora remote users with tracks
     localVideoTrack?: any;
     localVideoRef: React.RefObject<HTMLDivElement>;
 }
@@ -62,12 +62,15 @@ export default function VideoGrid({ participants, userId, remoteUsers, localVide
                     else if (index === 2) specialStyle = { gridArea: 'c' };
                 }
 
+                const remoteUser = !isLocal ? remoteUsers[p.userId] : undefined;
+                const videoTrack = isLocal ? localVideoTrack : remoteUser?.videoTrack;
+
                 return (
                     <ParticipantTile
                         key={p.userId}
                         participant={p}
                         isLocal={isLocal}
-                        videoTrack={isLocal ? localVideoTrack : remoteUsers[p.userId]?.videoTrack}
+                        videoTrack={videoTrack}
                         localVideoRef={isLocal ? localVideoRef : undefined}
                         style={specialStyle}
                     />

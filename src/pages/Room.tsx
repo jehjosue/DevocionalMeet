@@ -634,9 +634,18 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   // ── Keep participants list in sync (separate effect for socket-ref safety) ──
   // NOTE: All socket event listeners are now registered inside the main init useEffect above.
   // This useEffect is intentionally left empty except for the 'isAlone' derived state.
+  const remoteUsersMap = remoteUsers.reduce((acc: any, u: any) => {
+    acc[String(u.uid)] = u;
+    return acc;
+  }, {});
+
+  const allParticipantsForGrid = [
+    { userId: String(localUidRef.current || "local"), userName },
+    ...remoteUsers.map(u => ({ userId: String(u.uid), userName: u.name })),
+  ];
 
   // Condição para exibir tela de espera (Google Meet style)
-  const isAlone = participants.length <= 1;
+  const isAlone = remoteUsers.length === 0;
 
   if (isAlone) {
     return (
@@ -648,6 +657,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
           isCameraOff={!videoOn}
           onToggleMic={toggleMic}
           onToggleCam={toggleVideo}
+          localVideoTrack={localVideoTrackRef.current}
         />
       </div>
     );
@@ -820,12 +830,9 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         {/* ── Video grid ── */}
         <div style={{ flex: 1, padding: '8px', overflow: 'hidden' }}>
           <VideoGrid
-            participants={[
-              ...participants.filter(p => p.userId !== userId),
-              { userId, userName: 'Você' } // Local user always last
-            ]}
-            userId={userId}
-            remoteUsers={Object.fromEntries(remoteUsers.map(u => [u.uid, u]))}
+            participants={allParticipantsForGrid}
+            userId={String(localUidRef.current || "local")}
+            remoteUsers={remoteUsersMap}
             localVideoTrack={localVideoTrackRef.current}
             localVideoRef={localVideoPipRef}
           />
@@ -861,134 +868,60 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
           </div>
         )}
 
-        {/* ── Control bar (WhatsApp/Meet style) ── */}
+        {/* ── Controles ── */}
         <div style={{
+          position: "fixed", bottom: 0, left: 0, right: 0,
           display: "flex", alignItems: "center", justifyContent: "center",
-          gap: 8, padding: "10px 12px",
-          background: "#2C2C2E",
-          borderRadius: "28px",
-          zIndex: 20,
-          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          gap: 12, padding: "16px 24px",
+          paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
+          background: "rgba(28,28,30,0.95)",
+          backdropFilter: "blur(20px)",
+          borderRadius: "24px 24px 0 0",
+          zIndex: 100,
         }}>
-          {/* Câmera */}
-          <Btn
-            active={!videoOn}
-            activeBg="#FFCDD2"
-            activeColor="#C62828"
-            onClick={toggleVideo}
-            title={videoOn ? "Desligar câmera" : "Ligar câmera"}
-          >
+          <button onClick={toggleVideo} style={{ width:56, height:56, borderRadius:16, background: videoOn ? "#3A3A3C" : "#ea4335", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
             <IconCamera off={!videoOn} />
-          </Btn>
-
-          {/* Microfone */}
-          <Btn
-            active={!micOn}
-            activeBg="#FFCDD2"
-            activeColor="#C62828"
-            onClick={toggleMic}
-            title={micOn ? "Mutar" : "Ativar mic"}
-          >
+          </button>
+          <button onClick={toggleMic} style={{ width:56, height:56, borderRadius:16, background: micOn ? "#3A3A3C" : "#ea4335", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
             <IconMic muted={!micOn} />
-          </Btn>
-
-          {/* Emoji */}
-          <Btn
-            active={showReactions}
-            activeBg="#BBDEFB"
-            activeColor="#1565C0"
-            onClick={() => { setShowReactions(p => !p); setShowMenu(false); }}
-            title="Reações"
-          >
+          </button>
+          
+          <button onClick={() => { setShowReactions(p => !p); setShowMenu(false); }} style={{ width:56, height:56, borderRadius:16, background: showReactions ? "#BBDEFB" : "#3A3A3C", color: showReactions ? "#1565C0" : "#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
             <IconEmoji />
-          </Btn>
-
-          {/* Participantes */}
+          </button>
+          
           <button
             onPointerDown={() => { setShowParticipants(p => !p); setShowMenu(false); setActivitiesOpen(false); }}
             style={{
-              width: '62px',
-              height: '62px',
-              borderRadius: '20px',
-              background: showParticipants ? '#BBDEFB' : '#3A3A3C',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'background 0.1s ease, transform 0.08s ease',
-              position: 'relative',
-              flexShrink: 0,
-              touchAction: 'manipulation',
-              WebkitTapHighlightColor: 'transparent',
-              userSelect: 'none',
-              outline: 'none',
+              width: 56, height: 56, borderRadius: 16, background: showParticipants ? '#BBDEFB' : '#3A3A3C', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              position: 'relative', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none', outline: 'none',
+              color: showParticipants ? '#1565C0' : '#ffffff'
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24"
-              fill="none"
-              stroke={showParticipants ? '#1565C0' : '#ffffff'}
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
               <circle cx="9" cy="7" r="4" />
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-
-            {/* Badge com contagem de participantes */}
-            <div style={{
-              position: 'absolute',
-              top: '-4px',
-              right: '-4px',
-              minWidth: '18px',
-              height: '18px',
-              borderRadius: '999px',
-              background: '#2563EB',
-              color: '#fff',
-              fontSize: '0.65rem',
-              fontWeight: '700',
-              fontFamily: 'system-ui',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 4px',
-              border: '2px solid #2C2C2E'
-            }}>
+            <div style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 999, background: '#2563EB', color: '#fff', fontSize: '0.65rem', fontWeight: 700, fontFamily: 'system-ui', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', border: '2px solid #2C2C2E' }}>
               {participants.length}
             </div>
           </button>
 
-          {/* Menu / Atividades */}
-          <Btn
-            active={showMenu || activitiesOpen}
-            activeBg="#4A4A4C"
-            activeColor="#fff"
-            onClick={() => { setShowMenu(p => !p); setActivitiesOpen(false); setShowParticipants(false); }}
-            title="Mais opções"
-          >
+          <button onClick={() => { setShowMenu(p => !p); setActivitiesOpen(false); setShowParticipants(false); }} style={{ width:56, height:56, borderRadius:16, background: showMenu || activitiesOpen ? "#4A4A4C" : "#3A3A3C", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
             <IconDots />
-          </Btn>
+          </button>
 
+          <button onClick={() => { setActivitiesOpen(p => !p); setShowMenu(false); }} style={{ width:56, height:56, borderRadius:16, background: activitiesOpen ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.05)", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+             <span style={{ fontSize: "1.4rem" }}>✨</span>
+          </button>
 
-          {/* Separador */}
-          <div style={{
-            width: "1.5px", height: "38px",
-            background: "rgba(255,255,255,0.13)",
-            borderRadius: "1px", margin: "0 2px", flexShrink: 0,
-          }} />
-
-          {/* Atividades (✨) - Adicionado conforme o design unificado */}
-          <Btn
-            active={activitiesOpen}
-            activeBg="rgba(255,255,255,0.2)"
-            onClick={() => { setActivitiesOpen(p => !p); setShowMenu(false); }}
-            title="Atividades"
-          >
-            <span style={{ fontSize: "1.4rem" }}>✨</span>
-          </Btn>
+          <div style={{ width:1, height:38, background:"rgba(255,255,255,0.12)", margin:"0 4px" }} />
+          <button onClick={leaveCall} style={{ width:76, height:56, borderRadius:999, background:"#D32F2F", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 18px rgba(211,47,47,0.5)" }}>
+            <IconEndCall />
+          </button>
+        </div>
 
           {/* PAINEL DE PARTICIPANTES */}
           <AnimatePresence>
@@ -1219,24 +1152,6 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
               </>
             )}
           </AnimatePresence>
-
-          {/* Encerrar */}
-          <button
-            onClick={leaveCall}
-            style={{
-              width: "78px", height: "62px", borderRadius: "20px",
-              background: "#D32F2F", border: "none", cursor: "pointer",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 4px 18px rgba(211,47,47,0.5)",
-              transition: "transform 0.12s ease", flexShrink: 0,
-            }}
-            onMouseDown={e => e.currentTarget.style.transform = "scale(0.91)"}
-            onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
-            onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
-          >
-            <IconEndCall />
-          </button>
-        </div>
 
         {/* ── Bottom sheet overlay ── */}
         {showMenu && (

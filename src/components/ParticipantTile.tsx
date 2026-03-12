@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MicOff, User } from 'lucide-react';
 
 interface ParticipantTileProps {
@@ -29,6 +29,14 @@ export default function ParticipantTile({
     className
 }: ParticipantTileProps) {
     const [hasError, setHasError] = useState(false);
+    const remoteVideoRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (isLocal || !videoTrack || !remoteVideoRef.current) return;
+        const container = remoteVideoRef.current;
+        if (container.querySelector('video')) return;
+        videoTrack.play(container);
+    }, [videoTrack, isLocal]);
 
     return (
         <div
@@ -46,7 +54,7 @@ export default function ParticipantTile({
                     </div>
                 ) : (
                     <div
-                        ref={isLocal ? localVideoRef : (el) => { if (el && videoTrack) videoTrack.play(el); }}
+                        ref={isLocal ? localVideoRef : remoteVideoRef}
                         style={{
                             width: '100%',
                             height: '100%',

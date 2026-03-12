@@ -40,6 +40,7 @@ const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || 'https://devoci
 
 // Banco em memória para salas e sessões de música
 const rooms: Record<string, any> = {};
+const socketToUser = new Map();
 const musicSessions: Record<string, any> = {};
 
 function generateRoomCode() {
@@ -127,6 +128,7 @@ async function startServer() {
         return;
       }
       socket.join(code);
+      socketToUser.set(socket.id, { userId, userName, code });
       const participant = { userId, userName, socketId: socket.id, joinedAt: Date.now() };
 
       // Evita duplicados
@@ -174,9 +176,29 @@ async function startServer() {
     });
 
     socket.on("chat_message", (payload) => {
-      // Pode ser roomId (antigo) ou code (novo)
-      const target = payload.room || payload.roomId || "global";
-      io.to(target).emit("chat_message", payload);
+      const code = payload.room || payload.roomId || payload.code;
+      if (code) {
+        socket.to(code).emit("chat_message", payload);
+      } else {
+        socket.rooms.forEach(room => {
+          if (room !== socket.id) socket.to(room).emit("chat_message", payload);
+        });
+      }
+    });
+
+    socket.on("announce-name", (code, agoraUid, userName) => {
+      io.to(code).emit("user-name", agoraUid, userName);
+    });
+
+    socket.on("raise_hand", (data) => {
+      const userRooms = [...socket.rooms].filter(r => r !== socket.id);
+      userRooms.forEach(code => socket.to(code).emit("raise_hand", data));
+    });
+
+    socket.on("reaction", (emoji) => {
+      const userInfo = socketToUser.get(socket.id);
+      const userRooms = [...socket.rooms].filter(r => r !== socket.id);
+      userRooms.forEach(code => socket.to(code).emit("reaction", { emoji, uid: userInfo?.userId || socket.id }));
     });
 
     socket.on('host:muteAll', ({ code, muted }) => {
@@ -300,12 +322,14 @@ async function startServer() {
     });
 
     socket.on("disconnect", () => {
+      const userInfo = socketToUser.get(socket.id);
+      socketToUser.delete(socket.id);
       Object.keys(rooms).forEach(code => {
         const room = rooms[code];
-        const before = room.participants.length;
+        const leaving = room.participants.find((p: any) => p.socketId === socket.id);
         room.participants = room.participants.filter((p: any) => p.socketId !== socket.id);
-        if (room.participants.length < before) {
-          io.to(code).emit('room:participantLeft', { total: room.participants.length });
+        if (leaving) {
+          io.to(code).emit('room:participantLeft', { userId: leaving.userId, total: room.participants.length });
         }
       });
     });

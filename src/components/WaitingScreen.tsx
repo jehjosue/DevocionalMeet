@@ -7,30 +7,22 @@ interface WaitingScreenProps {
     isCameraOff: boolean;
     onToggleMic: () => void;
     onToggleCam: () => void;
+    localVideoTrack: any;
 }
 
 export default function WaitingScreen({
-    meetLink, onEndCall, isMuted, isCameraOff, onToggleMic, onToggleCam
+    meetLink, onEndCall, isMuted, isCameraOff, onToggleMic, onToggleCam, localVideoTrack
 }: WaitingScreenProps) {
     const [copied, setCopied] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
-    const localVideoRef = useRef<HTMLVideoElement>(null);
+    const videoContainerRef = useRef<HTMLDivElement>(null);
 
-    // Iniciar câmera local para o preview
     useEffect(() => {
-        let stream: MediaStream;
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-            .then(s => {
-                stream = s;
-                if (localVideoRef.current) {
-                    localVideoRef.current.srcObject = s;
-                }
-            })
-            .catch(err => console.warn('Câmera não disponível para preview:', err));
-        return () => {
-            stream?.getTracks().forEach(t => t.stop());
-        };
-    }, []);
+        if (!localVideoTrack || !videoContainerRef.current) return;
+        const container = videoContainerRef.current;
+        if (container.querySelector('video')) return;
+        localVideoTrack.play(container);
+    }, [localVideoTrack]);
 
     const handleCopy = async () => {
         await navigator.clipboard.writeText(meetLink);
@@ -226,18 +218,15 @@ export default function WaitingScreen({
                 boxShadow: '0 8px 32px rgba(0,0,0,0.55)',
                 zIndex: 10
             }}>
-                <video
-                    ref={localVideoRef}
-                    autoPlay
-                    muted
-                    playsInline
-                    style={{
-                        width: '100%',
-                        aspectRatio: '3/4',
-                        objectFit: 'cover',
-                        display: 'block'
-                    }}
-                />
+                <div style={{
+                    width: '100%',
+                    aspectRatio: '3/4',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    display: 'block'
+                }}>
+                    <div ref={videoContainerRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+                </div>
                 {/* Sobreposição inferior */}
                 <div style={{
                     position: 'absolute',
@@ -246,7 +235,8 @@ export default function WaitingScreen({
                     padding: '22px 8px 7px',
                     display: 'flex',
                     justifyContent: 'space-between',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    zIndex: 2
                 }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" opacity="0.9">
                         <path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z" />
