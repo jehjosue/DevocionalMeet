@@ -235,6 +235,22 @@ function SpotifyPanel({ socket, code, isHost }: any) {
     }, []);
 
     useEffect(() => {
+        const handler = (event: MessageEvent) => {
+            if (event.data === 'spotify-connected') {
+                fetch('/auth/spotify/token')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.access_token) {
+                            setToken(data.access_token);
+                        }
+                    });
+            }
+        };
+        window.addEventListener('message', handler);
+        return () => window.removeEventListener('message', handler);
+    }, []);
+
+    useEffect(() => {
         fetchToken();
     }, [fetchToken]);
 
