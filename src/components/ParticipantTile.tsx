@@ -38,6 +38,23 @@ export default function ParticipantTile({
         videoTrack.play(container);
     }, [videoTrack, isLocal]);
 
+    useEffect(() => {
+        if (!isLocal || !localVideoRef?.current || !videoTrack) return;
+        const container = localVideoRef.current;
+        if (container.querySelector('video')) return;
+        try {
+            videoTrack.play(container);
+            setTimeout(() => {
+                const vid = container.querySelector('video') as HTMLVideoElement;
+                if (vid) vid.style.cssText = 'width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;';
+                const wrap = container.querySelector('div');
+                if (wrap) wrap.style.cssText = 'width:100%!important;height:100%!important;position:absolute!important;top:0!important;left:0!important;';
+            }, 100);
+        } catch (e) {
+            console.warn('vídeo local:', e);
+        }
+    }, [isLocal, videoTrack, localVideoRef]);
+
     return (
         <div
             className={`relative rounded-xl overflow-hidden bg-[#1C1C1C] border-2 transition-all duration-300 ${isSpeaking ? 'border-[#25D366]' : 'border-transparent'} ${className || ''}`}
