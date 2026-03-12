@@ -277,26 +277,30 @@ function SpotifyPanel({ socket, code, isHost }: any) {
     };
 
     const connectSpotify = async () => {
-        try {
-            const res = await fetch('/auth/spotify');
-            const data = await res.json();
-            if (!data.url) return;
+        const res = await fetch('/auth/spotify');
+        const { url } = await res.json();
 
-            const popup = window.open(
-                data.url,
-                'spotify-auth',
-                'width=500,height=700,left=200,top=100'
-            );
+        const popup = window.open(
+            url,
+            'spotify-auth',
+            'width=500,height=700,left=200,top=100'
+        );
 
-            const check = setInterval(() => {
-                if (popup?.closed) {
-                    clearInterval(check);
-                    fetchToken();
-                }
-            }, 500);
-        } catch (e) {
-            console.error('Spotify connect error:', e);
-        }
+        // Escuta quando o popup fechar
+        const check = setInterval(() => {
+            if (popup?.closed) {
+                clearInterval(check);
+                // Verifica se conseguiu o token
+                fetch('/auth/spotify/token')
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.access_token) {
+                            // Token obtido com sucesso!
+                            setToken(data.access_token);
+                        }
+                    });
+            }
+        }, 500);
     };
 
     if (!token) {
