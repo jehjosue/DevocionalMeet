@@ -294,36 +294,45 @@ function SpotifyPanel({ socket, code, isHost }: any) {
 
     const connectSpotify = async () => {
         try {
-            // Tenta abrir popup
             const res = await fetch('/auth/spotify');
-            const { url } = await res.json();
+            const data = await res.json();
 
-            // Mobile: abre na mesma aba com sessionStorage para não perder estado
-            const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-
-            if (isMobile) {
-                // Salva estado atual antes de redirecionar
-                sessionStorage.setItem('spotify_return', window.location.href);
-                window.location.href = url;
+            if (!data.url) {
+                console.error('URL do Spotify não retornada');
                 return;
             }
 
-            // Desktop: abre popup
-            const popup = window.open(url, 'spotify-auth', 'width=500,height=700');
+            // Mobile iOS: redireciona na mesma aba
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            if (isIOS) {
+                sessionStorage.setItem('spotify_return', window.location.href);
+                window.location.href = data.url;
+                return;
+            }
+
+            // Desktop/Android: abre popup
+            const popup = window.open(data.url, 'spotify-auth', 'width=500,height=700');
+            if (!popup) {
+                // Popup bloqueado — redireciona direto
+                window.location.href = data.url;
+                return;
+            }
 
             const check = setInterval(() => {
-                if (popup?.closed) {
+                if (popup.closed) {
                     clearInterval(check);
                     fetch('/auth/spotify/token')
                         .then(r => r.json())
-                        .then(data => {
-                            if (data.access_token) setSpotifyToken(data.access_token);
+                        .then(d => {
+                            if (d.access_token) setSpotifyToken(d.access_token);
                         });
                 }
             }, 500);
 
         } catch (e) {
-            console.error('Spotify connect error:', e);
+            console.error('Erro ao conectar Spotify:', e);
+            // Fallback direto
+            window.location.href = '/auth/spotify';
         }
     };
 
