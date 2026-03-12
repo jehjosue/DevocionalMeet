@@ -396,6 +396,13 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       setParticipants(synced);
     });
 
+    socket.on("user-name", (agoraUid: string | number, name: string) => {
+      uidNameMap.current.set(agoraUid, name);
+      setRemoteUsers(prev => prev.map(u => 
+        String(u.uid) === String(agoraUid) ? { ...u, name } : u
+      ));
+    });
+
     socket.on('room:mutedByHost', ({ muted, all, userId: targetId }: any) => {
       if (all) {
         setAllMuted(muted);
