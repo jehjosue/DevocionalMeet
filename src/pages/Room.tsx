@@ -267,14 +267,19 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const sendReaction = useCallback((emoji: string) => {
     const id = String(++floatIdRef.current);
     const x = 60 + Math.random() * (window.innerWidth - 120);
+    
+    // Mostra localmente
     setFloatEmojis(prev => [...prev, { id, emoji, x }]);
-
-    // Mostra o emoji no próprio tile (local)
     setTileEmojis(prev => [...prev, { uid: "local", emoji }]);
-    setTimeout(() => setTileEmojis(prev => prev.filter(e => e.uid !== "local" || e.emoji !== emoji)), 1200);
+    setTimeout(() => {
+      setTileEmojis(prev => prev.filter(e => !(e.uid === "local" && e.emoji === emoji)));
+    }, 1200);
 
-    // Envia via socket para outros verem
-    socketRef.current?.emit("reaction", emoji);
+    // Envia para o servidor com uid do Agora
+    socketRef.current?.emit("reaction", {
+      emoji,
+      uid: localUidRef.current || "local",
+    });
 
     setShowReactions(false);
   }, []);
@@ -284,25 +289,27 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     if (!socketRef.current) return;
     const socket = socketRef.current;
 
-    const onReaction = (data: string | { emoji: string; uid: string | number }) => {
-      // Verifica se o dado é apenas a string (emoji) ou objeto com uid
+    const onReaction = (data: any) => {
       const emoji = typeof data === "string" ? data : data.emoji;
       const uid = typeof data === "object" ? data.uid : null;
 
+      // Mostra flutuando na tela
+      const floatId = String(++floatIdRef.current);
+      const x = 40 + Math.random() * (window.innerWidth - 80);
+      setFloatEmojis(prev => [...prev, { id: floatId, emoji, x }]);
+
+      // Mostra no tile do participante
       if (uid) {
         setTileEmojis(prev => [...prev, { uid, emoji }]);
-        setTimeout(() => setTileEmojis(prev => prev.filter(e => e.uid !== uid || e.emoji !== emoji)), 1200);
-      } else {
-        // Fallback: mostra uma reação flutuante aleatória se não tiver UID
-        const floatId = String(++floatIdRef.current);
-        const x = 40 + Math.random() * (window.innerWidth - 80);
-        setFloatEmojis(prev => [...prev, { id: floatId, emoji, x }]);
+        setTimeout(() => {
+          setTileEmojis(prev => prev.filter(e => !(String(e.uid) === String(uid) && e.emoji === emoji)));
+        }, 1200);
       }
     };
 
     socket.on("reaction", onReaction);
     return () => { socket.off("reaction", onReaction); };
-  }, [remoteUsers]);
+  }, [socketRef.current]);
 
   // ── Agora + Socket init ──
   useEffect(() => {
@@ -583,23 +590,45 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const handleMuteAll = () => {
     const next = !allMuted;
     setAllMuted(next);
-    socketRef.current?.emit('host:muteAll', { code: roomName, muted: next });
+    socketRef.current?.emit('host:muteAll', { 
+      code: roomName, 
+      muted: next 
+    });
   };
 
   const handleMuteOne = (targetUserId: string) => {
     const isMuted = mutedParticipants.includes(targetUserId);
-    socketRef.current?.emit('host:muteOne', { code: roomName, userId: targetUserId, muted: !isMuted });
+    const next = !isMuted;
+    setMutedParticipants(prev => 
+      next ? [...prev, targetUserId] : prev.filter(id => id !== targetUserId)
+    );
+    socketRef.current?.emit('host:muteOne', { 
+      code: roomName, 
+      userId: targetUserId, 
+      muted: next 
+    });
   };
 
   const handleDisableVideoAll = () => {
     const next = !allVideoDisabled;
     setAllVideoDisabled(next);
-    socketRef.current?.emit('host:disableVideoAll', { code: roomName, disabled: next });
+    socketRef.current?.emit('host:disableVideoAll', { 
+      code: roomName, 
+      disabled: next 
+    });
   };
 
   const handleDisableVideoOne = (targetUserId: string) => {
     const isDisabled = videoDisabledParticipants.includes(targetUserId);
-    socketRef.current?.emit('host:disableVideoOne', { code: roomName, userId: targetUserId, disabled: !isDisabled });
+    const next = !isDisabled;
+    setVideoDisabledParticipants(prev =>
+      next ? [...prev, targetUserId] : prev.filter(id => id !== targetUserId)
+    );
+    socketRef.current?.emit('host:disableVideoOne', { 
+      code: roomName, 
+      userId: targetUserId, 
+      disabled: next 
+    });
   };
 
   // ── Tile ordering ──

@@ -196,10 +196,18 @@ async function startServer() {
       userRooms.forEach(code => socket.to(code).emit("raise_hand", data));
     });
 
-    socket.on("reaction", (emoji) => {
+    socket.on("reaction", (data: any) => {
+      const emoji = typeof data === "string" ? data : data.emoji;
+      const uid = typeof data === "object" ? data.uid : null;
       const userInfo = socketToUser.get(socket.id);
+      
       const userRooms = [...socket.rooms].filter(r => r !== socket.id);
-      userRooms.forEach(code => socket.to(code).emit("reaction", { emoji, uid: userInfo?.userId || socket.id }));
+      userRooms.forEach(code => {
+        socket.to(code).emit("reaction", { 
+          emoji, 
+          uid: uid || userInfo?.userId || socket.id 
+        });
+      });
     });
 
     socket.on('host:muteAll', ({ code, muted }) => {
