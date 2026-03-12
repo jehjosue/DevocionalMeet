@@ -52,7 +52,7 @@ export default function VideoGrid({ participants, userId, remoteUsers, localVide
             }}
         >
             {participants.map((p, index) => {
-                const isLocal = p.userId === userId;
+                const isLocal = p.userId === userId || p.userId === "local";
 
                 // Layout especial para 3 participantes
                 let specialStyle: React.CSSProperties = {};

@@ -639,8 +639,10 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     return acc;
   }, {});
 
+  const localId = String(localUidRef.current || "local");
+
   const allParticipantsForGrid = [
-    { userId: String(localUidRef.current || "local"), userName },
+    { userId: localId, userName },
     ...remoteUsers.map(u => ({ userId: String(u.uid), userName: u.name })),
   ];
 
@@ -831,7 +833,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         <div style={{ flex: 1, padding: '8px', overflow: 'hidden' }}>
           <VideoGrid
             participants={allParticipantsForGrid}
-            userId={String(localUidRef.current || "local")}
+            userId={localId}
             remoteUsers={remoteUsersMap}
             localVideoTrack={localVideoTrackRef.current}
             localVideoRef={localVideoPipRef}
