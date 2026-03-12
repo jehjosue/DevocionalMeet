@@ -39,12 +39,36 @@ function MeetingWrapper() {
   }
 
   if (!room && localStorage.getItem("dmeet_role") !== "leader") {
-    return <div style={{ color: "#fff", padding: 20 }}>Carregando sala...</div>;
+    return (
+      <div style={{ 
+        width: "100vw", height: "100vh", 
+        background: "#000", 
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        color: "#fff", fontFamily: "system-ui", gap: 16
+      }}>
+        <div style={{ fontSize: "2rem" }}>⏳</div>
+        <p style={{ fontSize: "1rem" }}>Entrando na reunião...</p>
+        <p style={{ fontSize: "0.8rem", color: "#666" }}>{code}</p>
+      </div>
+    );
+  }
+
+  if (!room && localStorage.getItem("dmeet_role") === "leader") {
+    return (
+      <Room
+        initialRoom={{ code, hostId: userId }}
+        initialParticipants={[]}
+        userId={userId}
+        userName={userName}
+        socket={socket}
+      />
+    );
   }
 
   return (
     <Room
-      initialRoom={room || { code, hostId: isHost ? userId : null }}
+      initialRoom={room!}
       initialParticipants={participants}
       userId={userId}
       userName={userName}
