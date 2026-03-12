@@ -38,6 +38,15 @@ export default function Home() {
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [inputCode, setInputCode] = useState("");
 
+  // Detecção automática de link de convite
+  useEffect(() => {
+    const roomId = searchParams.get("roomId");
+    if (roomId && userName.trim()) {
+      // Já tem nome salvo, entra direto
+      handleJoinRoom(roomId);
+    }
+  }, []);
+
   const handleOpenMenu = () => {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
@@ -285,19 +294,19 @@ export default function Home() {
 
   const handleJoinRoom = (code: string) => {
     const clean = code.trim().toLowerCase();
-    if (!clean) return;
-    localStorage.setItem('dmeet_name', userName);
+    if (!clean || !userName.trim()) return;
+    
+    // Salva nome e role
+    localStorage.setItem('dmeet_name', userName.trim());
     localStorage.setItem('dmeet_role', 'guest');
-
-    // Extrai o código caso o usuário cole a URL inteira
+    
+    // Extrai código se vier URL completa
     let finalCode = clean;
     if (finalCode.includes("/room/")) {
       finalCode = finalCode.split("/room/")[1].split("?")[0];
-    } else if (finalCode.includes("/")) {
-      finalCode = finalCode.split("/").pop() || finalCode;
     }
     finalCode = finalCode.split("?")[0];
-
+    
     enterFullscreen();
     navigate(`/room/${finalCode}`);
   };

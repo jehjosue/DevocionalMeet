@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import Home from "./pages/Home";
 import Room from "./pages/Room";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -7,9 +7,10 @@ import { useRoom } from "./hooks/useRoom";
 
 function MeetingWrapper() {
   const { code } = useParams();
-  const { room, participants, joinRoom, leaveRoom, socket } = useRoom();
-  const [userName] = useState(() => localStorage.getItem("dmeet_name") || "");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
+  const [userName] = useState(() => localStorage.getItem("dmeet_name") || "");
   const [userId] = useState(() => {
     const saved = localStorage.getItem("dmeet_userId");
     if (saved) return saved;
@@ -19,55 +20,78 @@ function MeetingWrapper() {
   });
 
   const role = localStorage.getItem("dmeet_role");
-  const isHost = role === "leader" || new URLSearchParams(window.location.search).get("host") === "true";
+  const isHost = role === "leader" || searchParams.get("host") === "true";
+
+  const { room, participants, joinRoom, socket } = useRoom();
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (code && userName && !room) {
-      if (isHost) {
-        // Líder: sala já foi criada no Home.tsx, apenas conecta via socket
-      } else {
-        // Convidado: entra na sala via API
-        joinRoom(code, userId, userName);
-      }
+    if (!code) return;
+    
+    if (!userName) {
+      navigate(`/?roomId=${code}`);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, userName, !!socket, isHost]);
 
-  if ((!userName || !code) && !new URLSearchParams(window.location.search).get("roomId")) {
-    return <Navigate to={`/?roomId=${code || ""}`} replace />;
+    if (isHost) {
+      setReady(true);
+      return;
+    }
+
+    // Convidado: entra via socket diretamente sem esperar API
+    if (socket) {
+      socket.emit('room:join', { code, userId, userName });
+      setReady(true);
+    }
+  }, [code, userName, socket]);
+
+  if (!userName) {
+    return <Navigate to={`/?roomId=${code}`} replace />;
   }
 
-  if (!room && localStorage.getItem("dmeet_role") !== "leader") {
+  if (error) {
     return (
-      <div style={{ 
-        width: "100vw", height: "100vh", 
-        background: "#000", 
+      <div style={{
+        width: "100vw", height: "100vh", background: "#000",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        color: "#fff", fontFamily: "system-ui", gap: 16
+      }}>
+        <div style={{ fontSize: "2rem" }}>❌</div>
+        <p style={{ fontSize: "1rem", color: "#ff6b6b" }}>{error}</p>
+        <button
+          onClick={() => navigate("/")}
+          style={{
+            background: "#2563eb", color: "#fff", border: "none",
+            borderRadius: 999, padding: "12px 28px",
+            fontSize: "0.95rem", fontWeight: 700, cursor: "pointer"
+          }}
+        >
+          Voltar ao início
+        </button>
+      </div>
+    );
+  }
+
+  if (!ready) {
+    return (
+      <div style={{
+        width: "100vw", height: "100vh", background: "#000",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
         color: "#fff", fontFamily: "system-ui", gap: 16
       }}>
         <div style={{ fontSize: "2rem" }}>⏳</div>
         <p style={{ fontSize: "1rem" }}>Entrando na reunião...</p>
-        <p style={{ fontSize: "0.8rem", color: "#666" }}>{code}</p>
+        <p style={{ fontSize: "0.8rem", color: "#555" }}>{code}</p>
       </div>
-    );
-  }
-
-  if (!room && localStorage.getItem("dmeet_role") === "leader") {
-    return (
-      <Room
-        initialRoom={{ code, hostId: userId }}
-        initialParticipants={[]}
-        userId={userId}
-        userName={userName}
-        socket={socket}
-      />
     );
   }
 
   return (
     <Room
-      initialRoom={room!}
+      initialRoom={room || { code, hostId: isHost ? userId : null }}
       initialParticipants={participants}
       userId={userId}
       userName={userName}

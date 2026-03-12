@@ -58,19 +58,30 @@ export function useRoom() {
         }
     }, [socket]);
 
-    const joinRoom = useCallback(async (code: string, userId: string, userName: string) => {
-        setError(null);
-        try {
-            const res = await fetch(`${SOCKET_URL}/rooms/${code}`);
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            setRoom({ ...data, code });
-            return data;
-        } catch (err: any) {
-            setError(err.message);
-            return null;
-        }
-    }, [socket]);
+  const joinRoom = useCallback(async (code: string, userId: string, userName: string) => {
+    setError(null);
+    try {
+      const API = 'https://api.devocionalmeet.shop';
+      const res = await fetch(`${API}/rooms/${code}`);
+      
+      if (!res.ok) {
+        // Sala pode não existir ainda, tenta entrar via socket mesmo assim
+        socket?.emit('room:join', { code, userId, userName });
+        setRoom({ code, hostId: null });
+        return { code };
+      }
+      
+      const data = await res.json();
+      setRoom({ ...data, code });
+      socket?.emit('room:join', { code, userId, userName });
+      return data;
+    } catch (err: any) {
+      // Se API falhar, entra via socket mesmo assim
+      socket?.emit('room:join', { code, userId, userName });
+      setRoom({ code, hostId: null });
+      return { code };
+    }
+  }, [socket]);
 
     const leaveRoom = useCallback((code: string, userId: string) => {
         socket?.emit('room:leave', { code, userId });
