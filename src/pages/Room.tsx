@@ -246,7 +246,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const localUidRef = useRef<string | number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const floatIdRef = useRef(0);
-  const localVideoPipRef = useRef<HTMLDivElement>(null);
+  const localVideoContainerRef = useRef<HTMLDivElement>(null);
 
   const userRole = localStorage.getItem('userRole');
   const isHost = initialRoom?.hostId === userId || userRole === 'leader' || searchParams.get("host") === "true";
@@ -491,11 +491,11 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         clearTimeout(failTO);
 
         // Play local video
-        if (localVideoPipRef.current && !localVideoPipRef.current.querySelector("video")) {
-          videoTrack.play(localVideoPipRef.current);
-          setTimeout(() => { if (localVideoPipRef.current) fixAgoraSize(localVideoPipRef.current); }, 100);
-          const obs = new ResizeObserver(() => { if (localVideoPipRef.current) fixAgoraSize(localVideoPipRef.current); });
-          obs.observe(localVideoPipRef.current);
+        if (localVideoContainerRef.current && !localVideoContainerRef.current.querySelector("video")) {
+          videoTrack.play(localVideoContainerRef.current);
+          setTimeout(() => { if (localVideoContainerRef.current) fixAgoraSize(localVideoContainerRef.current); }, 100);
+          const obs = new ResizeObserver(() => { if (localVideoContainerRef.current) fixAgoraSize(localVideoContainerRef.current); });
+          obs.observe(localVideoContainerRef.current);
         }
       } catch (err: any) {
         const msg = err?.message || String(err);
@@ -596,7 +596,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   // PiP manual management for Agora Video element
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      const vid = localVideoPipRef.current?.querySelector('video');
+      const vid = localVideoContainerRef.current?.querySelector('video');
       if (document.hidden && vid && document.pictureInPictureEnabled && vid.readyState >= 2) {
         try { if (vid !== document.pictureInPictureElement) await vid.requestPictureInPicture(); } catch (e) { console.warn('PiP:', e); }
       } else if (!document.hidden && document.pictureInPictureElement) {
@@ -604,7 +604,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       }
     };
     const handleBlur = async () => {
-      const vid = localVideoPipRef.current?.querySelector('video');
+      const vid = localVideoContainerRef.current?.querySelector('video');
       if (vid && document.pictureInPictureEnabled && vid.readyState >= 2) {
         try { if (vid !== document.pictureInPictureElement) await vid.requestPictureInPicture(); } catch (e) { console.warn('PiP:', e); }
       }
@@ -641,10 +641,9 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
   const localId = String(localUidRef.current || "local");
 
-
   const allParticipantsForGrid = [
     { userId: localId, userName },
-    ...sortedRemote.map(u => ({ userId: String(u.uid), userName: u.name })),
+    ...remoteUsers.map(u => ({ userId: String(u.uid), userName: u.name })),
   ];
 
   // Condição para exibir tela de espera (Google Meet style)
@@ -833,11 +832,11 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         {/* ── Video grid ── */}
         <div style={{ flex: 1, padding: '8px', overflow: 'hidden' }}>
           <VideoGrid
-            participants={allParticipantsForGrid}
             userId={localId}
+            participants={allParticipantsForGrid}
             remoteUsers={remoteUsersMap}
             localVideoTrack={localVideoTrackRef.current}
-            localVideoRef={localVideoPipRef}
+            localVideoRef={localVideoContainerRef}
           />
         </div>
 
