@@ -415,31 +415,39 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       }
     });
 
-    socket.on('room:videoDisabledByHost', ({ disabled, all, userId: targetId }: any) => {
+    socket.on('room:videoDisabledByHost', ({ disabled, all, userId: targetId }) => {
       if (all) {
         setAllVideoDisabled(disabled);
         if (disabled) {
           localVideoTrackRef.current?.setEnabled(false);
-          setVideoOn(false);
         } else {
           localVideoTrackRef.current?.setEnabled(true);
-          setVideoOn(true);
+          // Reativa e reaplica o vídeo no container após reativar
+          setTimeout(() => {
+            if (localVideoContainerRef.current && localVideoTrackRef.current) {
+              const existing = localVideoContainerRef.current.querySelector('video');
+              if (!existing) {
+                localVideoTrackRef.current.play(localVideoContainerRef.current);
+              }
+            }
+          }, 300);
         }
+        setVideoOn(!disabled);
       } else if (targetId === userId) {
         if (disabled) {
           localVideoTrackRef.current?.setEnabled(false);
-          setVideoOn(false);
         } else {
           localVideoTrackRef.current?.setEnabled(true);
-          setVideoOn(true);
+          setTimeout(() => {
+            if (localVideoContainerRef.current && localVideoTrackRef.current) {
+              const existing = localVideoContainerRef.current.querySelector('video');
+              if (!existing) {
+                localVideoTrackRef.current.play(localVideoContainerRef.current);
+              }
+            }
+          }, 300);
         }
-        setVideoDisabledParticipants(prev =>
-          disabled ? (prev.includes(userId) ? prev : [...prev, userId]) : prev.filter(id => id !== userId)
-        );
-      } else {
-        setVideoDisabledParticipants(prev =>
-          disabled ? (prev.includes(targetId) ? prev : [...prev, targetId]) : prev.filter(id => id !== targetId)
-        );
+        setVideoOn(!disabled);
       }
     });
 
