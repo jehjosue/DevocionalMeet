@@ -461,7 +461,6 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     });
 
     // Announce self to room
-    socket.emit('room:join', { code: roomName, userId, userName });
 
     const init = async () => {
       // Fullscreen request
@@ -503,8 +502,11 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         await client.join(AGORA_APP_ID, roomName!, null, uid);
         await client.publish([audioTrack, videoTrack]);
 
-        socket.emit("join-room", roomName, String(uid), userName);
+        // Anuncia nome para todos já conectados
         socket.emit("announce-name", roomName, uid, userName);
+
+        // Solicita nomes de quem já está na sala
+        socket.emit("room:join", { code: roomName, userId, userName });
         clearTimeout(failTO);
 
         // Play local video
