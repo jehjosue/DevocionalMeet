@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import http from "http";
@@ -490,6 +491,11 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static("dist"));
+
+    // SPA fallback — DEVE ser o último middleware
+    app.get('*', (req, res) => {
+      res.sendFile('index.html', { root: path.join(process.cwd(), 'dist') });
+    });
   }
 
   httpServer.listen(PORT, "0.0.0.0", () => {
