@@ -346,8 +346,16 @@ async function startServer() {
       redirect_uri: SPOTIFY_REDIRECT_URI,
       state,
     });
-    // Retorna a URL em vez de redirecionar — frontend abre em popup
-    res.json({ url: `https://accounts.spotify.com/authorize/?${params.toString()}` });
+
+    const spotifyUrl = `https://accounts.spotify.com/authorize/?${params.toString()}`;
+
+    // Se for requisição fetch (Accept: application/json), retorna JSON
+    if (req.headers.accept?.includes('application/json')) {
+      return res.json({ url: spotifyUrl });
+    }
+
+    // Caso contrário redireciona direto
+    res.redirect(spotifyUrl);
   });
 
   app.get('/callback', async (req, res) => {
