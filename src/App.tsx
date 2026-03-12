@@ -25,7 +25,6 @@ function MeetingWrapper() {
     if (code && userName && !room) {
       if (isHost) {
         // Líder: sala já foi criada no Home.tsx, apenas conecta via socket
-        socket?.emit("room:join", { code, userId, userName });
       } else {
         // Convidado: entra na sala via API
         joinRoom(code, userId, userName);

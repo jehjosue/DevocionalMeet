@@ -49,7 +49,6 @@ export function useRoom() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
             setRoom(data);
-            socket?.emit('room:join', { code: data.code, userId, userName });
             return data;
         } catch (err: any) {
             setError(err.message);
@@ -66,7 +65,6 @@ export function useRoom() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
             setRoom({ ...data, code });
-            socket?.emit('room:join', { code, userId, userName });
             return data;
         } catch (err: any) {
             setError(err.message);
