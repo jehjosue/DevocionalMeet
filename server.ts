@@ -372,21 +372,35 @@ async function startServer() {
       if (response.status === 200) {
         (req.session as any).spotify_access_token = response.data.access_token;
         (req.session as any).spotify_refresh_token = response.data.refresh_token;
-        // Fecha o popup em vez de redirecionar
+
+        // Fecha popup OU volta para a sala no mobile
         res.send(`
           <html><body>
             <script>
-              window.opener?.postMessage('spotify-connected', '*');
-              window.close();
+              if (window.opener) {
+                window.opener.postMessage('spotify-connected', '*');
+                window.close();
+              } else {
+                // Mobile: volta para onde estava
+                const returnUrl = sessionStorage.getItem('spotify_return') || '/';
+                sessionStorage.removeItem('spotify_return');
+                window.location.href = returnUrl;
+              }
             </script>
-            <p>Conectado! Pode fechar esta janela.</p>
+            <p>Conectado ao Spotify!</p>
           </body></html>
         `);
       }
     } catch (error) {
       res.send(`
         <html><body>
-          <script>window.close();</script>
+          <script>
+            if (window.opener) {
+              window.close();
+            } else {
+              window.location.href = '/?error=spotify_auth_failed';
+            }
+          </script>
           <p>Erro ao conectar. Tente novamente.</p>
         </body></html>
       `);
