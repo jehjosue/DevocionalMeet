@@ -219,7 +219,7 @@ function PrimaryBtn({ onClick, children, color = '#2563EB', disabled = false }: 
 
 // ─── Spotify Panel ────────────────────────────────────────────────────────────
 function SpotifyPanel({ socket, code, isHost }: any) {
-    const [token, setToken] = useState<string | null>(null);
+    const [spotifyToken, setSpotifyToken] = useState<string | null>(null);
     const [input, setInput] = useState('');
     const [currentUri, setCurrentUri] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -230,7 +230,7 @@ function SpotifyPanel({ socket, code, isHost }: any) {
         try {
             const res = await fetch('/auth/spotify/token');
             const data = await res.json();
-            if (data.access_token) setToken(data.access_token);
+            if (data.access_token) setSpotifyToken(data.access_token);
         } catch (e) { console.error('Error fetching spotify token:', e); }
     }, []);
 
@@ -241,7 +241,7 @@ function SpotifyPanel({ socket, code, isHost }: any) {
                     .then(r => r.json())
                     .then(data => {
                         if (data.access_token) {
-                            setToken(data.access_token);
+                            setSpotifyToken(data.access_token);
                         }
                     });
             }
@@ -312,14 +312,14 @@ function SpotifyPanel({ socket, code, isHost }: any) {
                     .then(data => {
                         if (data.access_token) {
                             // Token obtido com sucesso!
-                            setToken(data.access_token);
+                            setSpotifyToken(data.access_token);
                         }
                     });
             }
         }, 500);
     };
 
-    if (!token) {
+    if (!spotifyToken) {
         return (
             <div style={{ ...panelPad, alignItems: 'center', justifyContent: 'center' }}>
                 <Music size={64} color="#1DB954" style={{ marginBottom: 12 }} />
@@ -337,7 +337,7 @@ function SpotifyPanel({ socket, code, isHost }: any) {
     return (
         <WebPlaybackSDK
             initialDeviceName="DevocionalMeet Player"
-            getOAuthToken={(callback) => callback(token)}
+            getOAuthToken={(callback) => callback(spotifyToken!)}
             connect={true}
             initialVolume={0.5}
         >
