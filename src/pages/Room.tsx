@@ -641,9 +641,10 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
   const localId = String(localUidRef.current || "local");
 
+
   const allParticipantsForGrid = [
     { userId: localId, userName },
-    ...remoteUsers.map(u => ({ userId: String(u.uid), userName: u.name })),
+    ...sortedRemote.map(u => ({ userId: String(u.uid), userName: u.name })),
   ];
 
   // Condição para exibir tela de espera (Google Meet style)
