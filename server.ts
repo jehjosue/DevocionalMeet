@@ -359,11 +359,13 @@ async function startServer() {
         data: new URLSearchParams({
           code: code as string,
           redirect_uri: SPOTIFY_REDIRECT_URI,
-          grant_type: 'authorization_code'
+          grant_type: 'authorization_code',
         }).toString(),
         headers: {
-          'Authorization': 'Basic ' + Buffer.from(SPOTIFY_CLIENT_ID + ':' + SPOTIFY_CLIENT_SECRET).toString('base64'),
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Authorization': 'Basic ' + Buffer.from(
+            SPOTIFY_CLIENT_ID + ':' + SPOTIFY_CLIENT_SECRET
+          ).toString('base64'),
+          'Content-Type': 'application/x-www-form-urlencoded',
         }
       });
 
@@ -382,7 +384,6 @@ async function startServer() {
         `);
       }
     } catch (error) {
-      console.error('Spotify Auth error:', error);
       res.send(`
         <html><body>
           <script>window.close();</script>
