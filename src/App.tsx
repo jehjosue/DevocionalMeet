@@ -60,6 +60,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/room/:code" element={<MeetingWrapper />} />
+          {/* Rota curinga para evitar tela branca */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </ThemeProvider>
