@@ -293,30 +293,38 @@ function SpotifyPanel({ socket, code, isHost }: any) {
     };
 
     const connectSpotify = async () => {
-        const res = await fetch('/auth/spotify');
-        const { url } = await res.json();
+        try {
+            // Tenta abrir popup
+            const res = await fetch('/auth/spotify');
+            const { url } = await res.json();
 
-        const popup = window.open(
-            url,
-            'spotify-auth',
-            'width=500,height=700,left=200,top=100'
-        );
+            // Mobile: abre na mesma aba com sessionStorage para não perder estado
+            const isMobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
 
-        // Escuta quando o popup fechar
-        const check = setInterval(() => {
-            if (popup?.closed) {
-                clearInterval(check);
-                // Verifica se conseguiu o token
-                fetch('/auth/spotify/token')
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.access_token) {
-                            // Token obtido com sucesso!
-                            setSpotifyToken(data.access_token);
-                        }
-                    });
+            if (isMobile) {
+                // Salva estado atual antes de redirecionar
+                sessionStorage.setItem('spotify_return', window.location.href);
+                window.location.href = url;
+                return;
             }
-        }, 500);
+
+            // Desktop: abre popup
+            const popup = window.open(url, 'spotify-auth', 'width=500,height=700');
+
+            const check = setInterval(() => {
+                if (popup?.closed) {
+                    clearInterval(check);
+                    fetch('/auth/spotify/token')
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.access_token) setSpotifyToken(data.access_token);
+                        });
+                }
+            }, 500);
+
+        } catch (e) {
+            console.error('Spotify connect error:', e);
+        }
     };
 
     if (!spotifyToken) {
