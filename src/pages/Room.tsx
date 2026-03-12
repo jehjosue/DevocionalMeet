@@ -354,6 +354,15 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       }
     });
 
+    client.on("user-joined", (user) => {
+      const name = uidNameMap.current.get(user.uid) || "Participante";
+      setRemoteUsers(prev => {
+        const exists = prev.find(u => String(u.uid) === String(user.uid));
+        if (exists) return prev;
+        return [...prev, { uid: user.uid, name }];
+      });
+    });
+
     client.on("user-unpublished", (user, mediaType) => {
       if (mediaType === "video") setRemoteUsers(prev => prev.map(u => String(u.uid) === String(user.uid) ? { ...u, videoTrack: undefined } : u));
     });
