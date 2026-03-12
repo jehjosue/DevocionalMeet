@@ -276,6 +276,29 @@ function SpotifyPanel({ socket, code, isHost }: any) {
         socket?.emit('activity:spotify:set', { code, playing: next });
     };
 
+    const connectSpotify = async () => {
+        try {
+            const res = await fetch('/auth/spotify');
+            const data = await res.json();
+            if (!data.url) return;
+
+            const popup = window.open(
+                data.url,
+                'spotify-auth',
+                'width=500,height=700,left=200,top=100'
+            );
+
+            const check = setInterval(() => {
+                if (popup?.closed) {
+                    clearInterval(check);
+                    fetchToken();
+                }
+            }, 500);
+        } catch (e) {
+            console.error('Spotify connect error:', e);
+        }
+    };
+
     if (!token) {
         return (
             <div style={{ ...panelPad, alignItems: 'center', justifyContent: 'center' }}>
@@ -284,7 +307,7 @@ function SpotifyPanel({ socket, code, isHost }: any) {
                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', textAlign: 'center', marginBottom: 20 }}>
                     Conecte sua conta para ouvir música com os participantes.
                 </div>
-                <PrimaryBtn onClick={() => window.location.href = '/auth/spotify'} color="#1DB954">
+                <PrimaryBtn onClick={connectSpotify} color="#1DB954">
                     Conectar Spotify
                 </PrimaryBtn>
             </div>
