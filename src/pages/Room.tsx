@@ -569,24 +569,6 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     };
   }, [roomName, userId, userName]);
 
-  useEffect(() => {
-    const remoteParticipants = participants.filter(p => p.userId !== userId);
-    if (remoteParticipants.length === 0) return;
-
-    setRemoteUsers(prev => {
-      const updated = [...prev];
-      remoteParticipants.forEach(p => {
-        const exists = updated.find(u =>
-          String(u.uid) === String(p.userId) || u.name === p.userName
-        );
-        if (!exists) {
-          updated.push({ uid: p.userId, name: p.userName });
-        }
-      });
-      return updated;
-    });
-  }, [participants]);
-
   // Chat auto-scroll
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
