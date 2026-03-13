@@ -861,6 +861,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
           zIndex: 20,
         }}>
           <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#E9EDEF" }}>{clockStr}</span>
+          <span style={{ fontSize: "0.65rem", fontWeight: 800, color: "#25D366", opacity: 0.8 }}>v3.0 - AI & Moderação</span>
           {/* Ícones removidos a pedido do usuário */}
         </div>
 
