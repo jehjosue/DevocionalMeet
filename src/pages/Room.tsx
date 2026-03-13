@@ -914,6 +914,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
             remoteUsers={remoteUsersMap}
             localVideoTrack={localVideoTrackRef.current}
             localVideoRef={localVideoContainerRef}
+            bgBlur={bgBlur}
           />
         </div>
 

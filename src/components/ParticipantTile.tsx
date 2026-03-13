@@ -62,6 +62,7 @@ export default function ParticipantTile({
                 const vid = container.querySelector('video') as HTMLVideoElement;
                 if (vid) {
                     vid.style.cssText = 'width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;';
+                    if (isLocal) vid.style.transform = 'scaleX(-1)';
                 }
             }, 100);
         } catch (e) {
@@ -114,6 +115,7 @@ export default function ParticipantTile({
                 // Remove desfoque
                 const blurDiv = container.querySelector('.blur-overlay');
                 if (blurDiv) blurDiv.remove();
+                vid.style.transform = isLocal ? 'scaleX(-1)' : 'none';
             }
         };
 
