@@ -28,9 +28,9 @@ function MeetingWrapper() {
 
   useEffect(() => {
     if (!code) return;
-    
+
     if (!userName) {
-      navigate(`/?roomId=${code}`);
+      navigate(`/?roomId=${code}`, { replace: true });
       return;
     }
 
@@ -39,11 +39,22 @@ function MeetingWrapper() {
       return;
     }
 
-    // Convidado: entra via socket diretamente sem esperar API
-    if (socket) {
-      socket.emit('room:join', { code, userId, userName });
+    // Convidado: usa socket do useRoom e entra direto
+    if (socket && socket.connected) {
+      socket.emit("room:join", { code, userId, userName });
       setReady(true);
+    } else if (socket) {
+      socket.once("connect", () => {
+        socket.emit("room:join", { code, userId, userName });
+        setReady(true);
+      });
     }
+
+    const timeout = setTimeout(() => {
+      setReady(true); // entra mesmo sem confirmação após 3s
+    }, 3000);
+
+    return () => clearTimeout(timeout);
   }, [code, userName, socket]);
 
   if (!userName) {
