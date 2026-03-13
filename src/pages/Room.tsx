@@ -676,9 +676,8 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     return 0;
   });
 
-  const MAX_TILES = 7;
-  const visibleRemote = sortedRemote.slice(0, MAX_TILES);
-  const extraCount = totalParticipants - 1 - visibleRemote.length; // extra beyond visible
+  const visibleRemote = sortedRemote;
+  const extraCount = 0;
 
   // PiP manual management for Agora Video element
   useEffect(() => {

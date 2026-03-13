@@ -13,6 +13,7 @@ interface ParticipantTileProps {
     isSpeaking?: boolean;
     isMuted?: boolean;
     isCameraOff?: boolean;
+    bgBlur?: boolean;
     style?: React.CSSProperties;
     className?: string;
 }
@@ -25,6 +26,7 @@ export default function ParticipantTile({
     isSpeaking,
     isMuted,
     isCameraOff,
+    bgBlur,
     style,
     className
 }: ParticipantTileProps) {
@@ -101,7 +103,9 @@ export default function ParticipantTile({
                             inset: 0,
                             width: '100%',
                             height: '100%',
-                            transform: 'none',
+                            transform: bgBlur ? 'scale(1.1)' : 'none',
+                            filter: bgBlur ? 'blur(12px)' : 'none',
+                            transition: 'all 0.3s ease'
                         }}
                     />
                 )}
