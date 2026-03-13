@@ -735,12 +735,12 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   ];
 
   // Condição para exibir tela de espera (Google Meet style)
-  const isAlone = remoteUsers.length === 0 && 
+  const isAlone = remoteUsers.length === 0 &&
     participants.filter(p => p.userId !== userId).length === 0;
 
   if (isAlone) {
     return (
-      <div style={{ width: '100vw', height: '100vh', animation: 'waFadeIn 0.35s ease-out' }}>
+      <div style={{ width: '100vw', height: '100vh' }}>
         <WaitingScreen
           meetLink={`${window.location.origin}/room/${roomName}`}
           onEndCall={leaveCall}
