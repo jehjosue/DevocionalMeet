@@ -15,14 +15,7 @@ interface VideoGridProps {
     bgBlur?: boolean;
 }
 
-export default function VideoGrid({ 
-    participants, 
-    userId, 
-    remoteUsers, 
-    localVideoTrack, 
-    localVideoRef,
-    bgBlur
-}: VideoGridProps) {
+export default function VideoGrid({ participants, userId, remoteUsers, localVideoTrack, localVideoRef, bgBlur }: VideoGridProps) {
     const count = participants.length;
 
     const getGridStyle = (): React.CSSProperties => {
@@ -129,8 +122,8 @@ export default function VideoGrid({
                         isLocal={isLocal}
                         videoTrack={videoTrack}
                         localVideoRef={isLocal ? localVideoRef : undefined}
-                        style={specialStyle}
                         bgBlur={isLocal ? bgBlur : false}
+                        style={specialStyle}
                     />
                 );
             })}
