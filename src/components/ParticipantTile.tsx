@@ -53,6 +53,23 @@ export default function ParticipantTile({
     }, [videoTrack, isLocal]);
 
     useEffect(() => {
+        if (!isLocal || !videoTrack || !localVideoRef?.current) return;
+        const container = localVideoRef.current;
+        if (container.querySelector('video')) return;
+        try {
+            videoTrack.play(container);
+            setTimeout(() => {
+                const vid = container.querySelector('video') as HTMLVideoElement;
+                if (vid) {
+                    vid.style.cssText = 'width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;';
+                }
+            }, 100);
+        } catch (e) {
+            console.warn('Vídeo local play:', e);
+        }
+    }, [videoTrack, isLocal, localVideoRef]);
+
+    useEffect(() => {
         const container = isLocal
             ? localVideoRef?.current
             : remoteVideoRef.current;
