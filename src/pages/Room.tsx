@@ -607,16 +607,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   };
 
   const toggleBlur = () => {
-    const next = !bgBlur;
-    setBgBlur(next);
-    
-    const container = localVideoContainerRef.current;
-    if (!container) return;
-    
-    // Aplica desfoque no container inteiro
-    container.style.filter = next ? 'blur(12px)' : 'none';
-    container.style.transform = next ? 'scale(1.1)' : 'scale(1)';
-    container.style.transition = 'all 0.3s ease';
+    setBgBlur(prev => !prev);
   };
 
   const handleMuteAll = () => {
