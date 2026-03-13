@@ -53,33 +53,58 @@ export default function ParticipantTile({
     }, [videoTrack, isLocal]);
 
     useEffect(() => {
-        if (!isLocal || !localVideoRef?.current || !videoTrack) return;
-        const container = localVideoRef.current;
-        if (container.querySelector('video')) return;
-        try {
-            videoTrack.play(container);
-            setTimeout(() => {
-                const vid = container.querySelector('video') as HTMLVideoElement;
-                if (vid) {
-                    vid.style.cssText = 'width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;';
-                    if (isLocal) {
-                        vid.style.transform = 'scaleX(-1)';
-                    } else {
-                        vid.style.transform = 'none';
-                        vid.style.webkitTransform = 'none';
-                    }
+        const container = isLocal
+            ? localVideoRef?.current
+            : remoteVideoRef.current;
+        if (!container) return;
+
+        const applyBlur = () => {
+            const vid = container.querySelector('video') as HTMLVideoElement;
+            if (!vid) return;
+
+            if (bgBlur) {
+                // Cria canvas sobreposto para efeito de desfoque no fundo
+                vid.style.filter = 'none';
+                vid.style.transform = isLocal ? 'scaleX(-1)' : 'none';
+
+                // Desfoque via SVG filter (funciona em todos os browsers mobile)
+                let blurDiv = container.querySelector('.blur-overlay') as HTMLElement;
+                if (!blurDiv) {
+                    blurDiv = document.createElement('div');
+                    blurDiv.className = 'blur-overlay';
+                    blurDiv.style.cssText = `
+            position:absolute;inset:0;z-index:1;
+            backdrop-filter:blur(16px);
+            -webkit-backdrop-filter:blur(16px);
+            pointer-events:none;
+          `;
+                    container.style.position = 'relative';
+                    container.appendChild(blurDiv);
                 }
-                const wrap = container.querySelector('div');
-                if (wrap) {
-                    wrap.style.cssText = 'width:100%!important;height:100%!important;position:absolute!important;top:0!important;left:0!important;';
-                    wrap.style.transform = 'none';
-                    wrap.style.webkitTransform = 'none';
-                }
-            }, 150);
-        } catch (e) {
-            console.warn('vídeo local:', e);
-        }
-    }, [isLocal, videoTrack, localVideoRef]);
+
+                // Recorte central (rosto) sem desfoque
+                blurDiv.style.cssText = `
+          position:absolute;inset:0;z-index:1;
+          background: transparent;
+          pointer-events:none;
+          --mask: radial-gradient(ellipse 55% 65% at 50% 40%, transparent 100%, black 100%);
+          -webkit-mask-image: var(--mask);
+          mask-image: var(--mask);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+        `;
+            } else {
+                // Remove desfoque
+                const blurDiv = container.querySelector('.blur-overlay');
+                if (blurDiv) blurDiv.remove();
+            }
+        };
+
+        // Tenta aplicar imediatamente, retry se vídeo ainda não carregou
+        applyBlur();
+        const retry = setTimeout(applyBlur, 300);
+        return () => clearTimeout(retry);
+    }, [bgBlur, isLocal, localVideoRef]);
 
     return (
         <div
@@ -103,9 +128,6 @@ export default function ParticipantTile({
                             inset: 0,
                             width: '100%',
                             height: '100%',
-                            transform: bgBlur ? 'scale(1.1)' : 'none',
-                            filter: bgBlur ? 'blur(12px)' : 'none',
-                            transition: 'all 0.3s ease'
                         }}
                     />
                 )}
