@@ -13,7 +13,6 @@ import Activities from "../components/Activities";
 import VideoGrid from "../components/VideoGrid";
 import { useBackgroundBlur } from '../hooks/useBackgroundBlur';
 import { toast, Toaster } from 'react-hot-toast';
-import { MicOff } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RemoteUser {
@@ -954,7 +953,6 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
             remoteUsers={remoteUsersMap}
             localVideoTrack={localVideoTrackRef.current}
             localVideoRef={localVideoContainerRef}
-            bgBlur={bgBlur}
           />
         </div>
 
