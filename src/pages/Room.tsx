@@ -236,6 +236,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const [showModeratorPanel, setShowModeratorPanel] = useState(false);
   const [showPWABanner, setShowPWABanner] = useState(false);
   const [socketObj, setSocketObj] = useState<Socket | null>(null);
+  const [bgBlur, setBgBlur] = useState(false);
 
   // ── Refs ──
   const clientRef = useRef<IAgoraRTCClient | null>(null);
@@ -587,6 +588,19 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     navigate("/");
   };
 
+  const toggleBlur = () => {
+    const next = !bgBlur;
+    setBgBlur(next);
+    
+    const container = localVideoContainerRef.current;
+    if (!container) return;
+    
+    // Aplica desfoque no container inteiro
+    container.style.filter = next ? 'blur(12px)' : 'none';
+    container.style.transform = next ? 'scale(1.1)' : 'scale(1)';
+    container.style.transition = 'all 0.3s ease';
+  };
+
   const handleMuteAll = () => {
     const next = !allMuted;
     setAllMuted(next);
@@ -688,7 +702,26 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
   // ── Keep participants list in sync (separate effect for socket-ref safety) ──
   // NOTE: All socket event listeners are now registered inside the main init useEffect above.
-  // This useEffect is intentionally left empty except for the 'isAlone' derived state.
+  useEffect(() => {
+    const remoteParticipants = participants.filter(p => p.userId !== userId);
+    if (remoteParticipants.length > 0 && remoteUsers.length === 0) {
+      // Participante entrou via socket mas Agora ainda não publicou
+      // Adiciona como remoteUser temporário para sair da WaitingScreen
+      setRemoteUsers(prev => {
+        const updated = [...prev];
+        remoteParticipants.forEach(p => {
+          const exists = updated.find(u => 
+            String(u.uid) === p.userId || u.name === p.userName
+          );
+          if (!exists) {
+            updated.push({ uid: p.userId, name: p.userName });
+          }
+        });
+        return updated;
+      });
+    }
+  }, [participants]);
+
   const remoteUsersMap = remoteUsers.reduce((acc: any, u: any) => {
     acc[String(u.uid)] = u;
     return acc;
@@ -702,7 +735,8 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   ];
 
   // Condição para exibir tela de espera (Google Meet style)
-  const isAlone = remoteUsers.length === 0 && participants.filter(p => p.userId !== userId).length === 0;
+  const isAlone = remoteUsers.length === 0 && 
+    participants.filter(p => p.userId !== userId).length === 0;
 
   if (isAlone) {
     return (
@@ -1316,6 +1350,26 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                     <span style={{ fontSize: "0.62rem", color: "#8696A0", textAlign: "center", lineHeight: 1.3 }}>Saída de Áudio</span>
                   </button>
                 </div>
+
+                {/* Background Blur */}
+                <button onClick={() => { toggleBlur(); setShowMenu(false); }} style={{
+                  width: '100%',
+                  background: bgBlur ? 'rgba(37,99,235,0.3)' : 'rgba(255,255,255,0.08)',
+                  border: bgBlur ? '1px solid #2563eb' : '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 14,
+                  padding: '14px 18px',
+                  color: '#fff',
+                  fontSize: '0.92rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  textAlign: 'left',
+                }}>
+                  <span style={{ fontSize: '1.3rem' }}>🌫️</span>
+                  {bgBlur ? 'Remover desfoque' : 'Desfocar fundo'}
+                </button>
               </div>
             </div>
           </>

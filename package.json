@@ -17,6 +17,7 @@
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@vitejs/plugin-react": "^5.0.4",
+    "agora-extension-virtual-background": "^2.1.0",
     "agora-rtc-sdk-ng": "^4.24.2",
     "axios": "^1.13.6",
     "cookie-parser": "^1.4.7",
