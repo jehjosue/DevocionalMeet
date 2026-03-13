@@ -11,6 +11,9 @@ import { SOCKET_URL, AGORA_APP_ID } from "../config";
 import WaitingScreen from "../components/WaitingScreen";
 import Activities from "../components/Activities";
 import VideoGrid from "../components/VideoGrid";
+import { useBackgroundBlur } from '../hooks/useBackgroundBlur';
+import { toast, Toaster } from 'react-hot-toast';
+import { MicOff } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface RemoteUser {
@@ -248,6 +251,10 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   const chatEndRef = useRef<HTMLDivElement>(null);
   const floatIdRef = useRef(0);
   const localVideoContainerRef = useRef<HTMLDivElement>(null);
+  const originalVideoTrackRef = useRef<any>(null);
+
+  const { isBlurEnabled, toggleBlur, blurredStream, isLoading: isBlurLoading } = useBackgroundBlur();
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const userRole = localStorage.getItem('userRole');
   const isHost = initialRoom?.hostId === userId || userRole === 'leader' || searchParams.get("host") === "true";
@@ -411,6 +418,18 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
       ));
     });
 
+    socket.on('mute-all', () => {
+      if (micOn) {
+        localAudioTrackRef.current?.setEnabled(false);
+        setMicOn(false);
+        toast.error("O administrador mutou todos os participantes", {
+          duration: 4000,
+          position: 'top-center',
+          style: { background: '#333', color: '#fff', borderRadius: '10px' }
+        });
+      }
+    });
+
     socket.on('room:mutedByHost', ({ muted, all, userId: targetId }: any) => {
       if (all) {
         setAllMuted(muted);
@@ -510,6 +529,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
         });
         localAudioTrackRef.current = audioTrack;
         localVideoTrackRef.current = videoTrack;
+        originalVideoTrackRef.current = videoTrack.getMediaStreamTrack();
 
         const uid = Math.floor(Math.random() * 100000);
         localUidRef.current = uid;
@@ -606,8 +626,28 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     navigate("/");
   };
 
-  const toggleBlur = () => {
-    setBgBlur(prev => !prev);
+  const toggleBlurAI = async () => {
+    if (!localVideoTrackRef.current) return;
+    
+    // Pega o stream nativo da track do Agora para o MediaPipe
+    const mediaStreamTrack = localVideoTrackRef.current.getMediaStreamTrack();
+    const stream = new MediaStream([mediaStreamTrack]);
+    
+    await toggleBlur(stream);
+  };
+
+  // Efeito para trocar a track do Agora quando o blur fornecer um novo stream
+  useEffect(() => {
+    if (isBlurEnabled && blurredStream && localVideoTrackRef.current) {
+        const newTrack = blurredStream.getVideoTracks()[0];
+        localVideoTrackRef.current.replaceTrack(newTrack).catch(e => console.warn("Erro ao trocar track por blur:", e));
+    } else if (!isBlurEnabled && originalVideoTrackRef.current && localVideoTrackRef.current) {
+        localVideoTrackRef.current.replaceTrack(originalVideoTrackRef.current).catch(e => console.warn("Erro ao restaurar track original:", e));
+    }
+  }, [isBlurEnabled, blurredStream]);
+
+  const handleMuteAllUnified = () => {
+    socketRef.current?.emit('mute-all', { roomId: roomName });
   };
 
   const handleMuteAll = () => {
@@ -1099,6 +1139,32 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                     >✕</button>
                   </div>
 
+                  <div style={{ padding: '0 20px 20px' }}>
+                    {isHost && (
+                      <button
+                        onClick={handleMuteAllUnified}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          background: '#ea4335',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '12px',
+                          fontWeight: '600',
+                          fontSize: '0.9rem',
+                          cursor: 'pointer',
+                          marginTop: '16px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <IconMic muted={true} /> Mutar todos
+                      </button>
+                    )}
+                  </div>
+
                   {/* BOTÃO "MUTAR TODOS" — APENAS PARA O HOST */}
                   {isHost && (
                     <div style={{
@@ -1343,24 +1409,25 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                 </div>
 
                 {/* Background Blur */}
-                <button onClick={() => { toggleBlur(); setShowMenu(false); }} style={{
-                  width: '100%',
-                  background: bgBlur ? 'rgba(37,99,235,0.3)' : 'rgba(255,255,255,0.08)',
-                  border: bgBlur ? '1px solid #2563eb' : '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 14,
-                  padding: '14px 18px',
-                  color: '#fff',
-                  fontSize: '0.92rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  textAlign: 'left',
-                }}>
-                  <span style={{ fontSize: '1.3rem' }}>🌫️</span>
-                  {bgBlur ? 'Remover desfoque' : 'Desfocar fundo'}
-                </button>
+                  <button onClick={() => { toggleBlurAI(); setShowMenu(false); }} style={{
+                    width: '100%',
+                    background: isBlurEnabled ? 'rgba(37,99,235,0.3)' : 'rgba(255,255,255,0.08)',
+                    border: isBlurEnabled ? '1px solid #2563eb' : '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 14,
+                    padding: '14px 18px',
+                    color: '#fff',
+                    fontSize: '0.92rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    textAlign: 'left',
+                    opacity: isBlurLoading ? 0.7 : 1,
+                  }}>
+                    <span style={{ fontSize: '1.3rem' }}>{isBlurLoading ? '⏳' : '🌫️'}</span>
+                    {isBlurEnabled ? 'Remover desfoque' : (isBlurLoading ? 'Carregando IA...' : 'Desfocar fundo')}
+                  </button>
               </div>
             </div>
           </>
@@ -1522,6 +1589,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
           )}
         </AnimatePresence>
       </div>
+      <Toaster />
     </>
   );
 }

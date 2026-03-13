@@ -12,6 +12,7 @@
     "start": "node server.ts"
   },
   "dependencies": {
+    "@mediapipe/selfie_segmentation": "^0.1.1675465747",
     "@supabase/supabase-js": "^2.97.0",
     "@tailwindcss/vite": "^4.1.14",
     "@types/cookie-parser": "^1.4.10",
@@ -30,6 +31,7 @@
     "nanoid": "^5.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.6.0",
     "react-router-dom": "^7.13.1",
     "react-spotify-web-playback-sdk": "^3.0.3",
     "socket.io": "^4.8.3",

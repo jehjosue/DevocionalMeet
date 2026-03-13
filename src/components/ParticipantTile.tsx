@@ -13,7 +13,6 @@ interface ParticipantTileProps {
     isSpeaking?: boolean;
     isMuted?: boolean;
     isCameraOff?: boolean;
-    bgBlur?: boolean;
     style?: React.CSSProperties;
     className?: string;
 }
@@ -26,11 +25,9 @@ export default function ParticipantTile({
     isSpeaking,
     isMuted,
     isCameraOff,
-    bgBlur,
     style,
     className
 }: ParticipantTileProps) {
-    const [hasError, setHasError] = useState(false);
     const remoteVideoRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -76,61 +73,6 @@ export default function ParticipantTile({
             console.warn('Vídeo local play:', e);
         }
     }, [videoTrack, isLocal, localVideoRef]);
-
-    useEffect(() => {
-        const container = isLocal
-            ? localVideoRef?.current
-            : remoteVideoRef.current;
-        if (!container) return;
-
-        const applyBlur = () => {
-            const vid = container.querySelector('video') as HTMLVideoElement;
-            if (!vid) return;
-
-            if (bgBlur) {
-                // Cria canvas sobreposto para efeito de desfoque no fundo
-                vid.style.filter = 'none';
-                vid.style.transform = isLocal ? 'scaleX(-1)' : 'none';
-
-                // Desfoque via SVG filter (funciona em todos os browsers mobile)
-                let blurDiv = container.querySelector('.blur-overlay') as HTMLElement;
-                if (!blurDiv) {
-                    blurDiv = document.createElement('div');
-                    blurDiv.className = 'blur-overlay';
-                    blurDiv.style.cssText = `
-            position:absolute;inset:0;z-index:1;
-            backdrop-filter:blur(16px);
-            -webkit-backdrop-filter:blur(16px);
-            pointer-events:none;
-          `;
-                    container.style.position = 'relative';
-                    container.appendChild(blurDiv);
-                }
-
-                // Recorte central (rosto) sem desfoque
-                blurDiv.style.cssText = `
-          position:absolute;inset:0;z-index:1;
-          background: transparent;
-          pointer-events:none;
-          --mask: radial-gradient(ellipse 55% 65% at 50% 40%, transparent 100%, black 100%);
-          -webkit-mask-image: var(--mask);
-          mask-image: var(--mask);
-          backdrop-filter: blur(16px);
-          -webkit-backdrop-filter: blur(16px);
-        `;
-            } else {
-                // Remove desfoque
-                const blurDiv = container.querySelector('.blur-overlay');
-                if (blurDiv) blurDiv.remove();
-                vid.style.transform = isLocal ? 'scaleX(-1)!important' : 'none';
-            }
-        };
-
-        // Tenta aplicar imediatamente, retry se vídeo ainda não carregou
-        applyBlur();
-        const retry = setTimeout(applyBlur, 300);
-        return () => clearTimeout(retry);
-    }, [bgBlur, isLocal, localVideoRef]);
 
     return (
         <div

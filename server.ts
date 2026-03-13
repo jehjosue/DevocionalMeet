@@ -210,6 +210,13 @@ async function startServer() {
       });
     });
 
+    socket.on('mute-all', ({ roomId }) => {
+      // Broadcast para todos na sala exceto quem enviou (opcional, mas user pediu todos)
+      // O user disse "Todos os participantes recebem", incluindo possivelmente o host no front?
+      // Geralmente emitimos para os outros.
+      socket.to(roomId).emit('mute-all');
+    });
+
     socket.on('host:muteAll', ({ code, muted }) => {
       socket.to(code).emit('room:mutedByHost', { muted, all: true });
     });
