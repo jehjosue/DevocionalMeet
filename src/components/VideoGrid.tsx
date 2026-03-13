@@ -18,28 +18,69 @@ export default function VideoGrid({ participants, userId, remoteUsers, localVide
     const count = participants.length;
 
     const getGridStyle = (): React.CSSProperties => {
-        if (count === 2) return {
-            gridTemplateColumns: '1fr 1fr',
+        const isMobile = window.innerWidth < 768;
+        const isTablet = window.innerWidth >= 768 && window.innerWidth < 1200;
+        const isDesktop = window.innerWidth >= 1200;
+
+        if (count === 1) return {
+            gridTemplateColumns: '1fr',
             gridTemplateRows: '1fr',
         };
+
+        if (count === 2) return {
+            gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr',
+            gridTemplateRows: '1fr',
+        };
+
         if (count === 3) return {
             gridTemplateColumns: '1fr 1fr',
             gridTemplateRows: '1fr 1fr',
             gridTemplateAreas: '"a a" "b c"',
         };
+
         if (count === 4) return {
             gridTemplateColumns: '1fr 1fr',
             gridTemplateRows: '1fr 1fr',
         };
-        if (count <= 6) return {
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gridTemplateRows: 'repeat(2, 1fr)',
-        };
-        return {
-            gridTemplateColumns: '1fr 1fr',
-            gridAutoRows: 'minmax(180px, 1fr)',
-            overflowY: 'auto',
-        };
+
+        if (count <= 6) {
+            if (isMobile) return { gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: '1fr' };
+            return { gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(2, 1fr)' };
+        }
+
+        if (count <= 9) {
+            if (isMobile) return { gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: 'minmax(120px, 1fr)' };
+            return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '1fr' };
+        }
+
+        if (count <= 12) {
+            if (isMobile) return { gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: 'minmax(100px, 1fr)' };
+            if (isTablet) return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '1fr' };
+            return { gridTemplateColumns: 'repeat(4, 1fr)', gridAutoRows: '1fr' };
+        }
+
+        if (count <= 16) {
+            if (isMobile) return { gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: 'minmax(90px, 1fr)' };
+            if (isTablet) return { gridTemplateColumns: 'repeat(4, 1fr)', gridAutoRows: '1fr' };
+            return { gridTemplateColumns: 'repeat(4, 1fr)', gridAutoRows: '1fr' };
+        }
+
+        if (count <= 25) {
+            if (isMobile) return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(80px, 1fr)' };
+            if (isTablet) return { gridTemplateColumns: 'repeat(4, 1fr)', gridAutoRows: '1fr' };
+            return { gridTemplateColumns: 'repeat(5, 1fr)', gridAutoRows: '1fr' };
+        }
+
+        if (count <= 36) {
+            if (isMobile) return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(70px, 1fr)' };
+            if (isTablet) return { gridTemplateColumns: 'repeat(5, 1fr)', gridAutoRows: '1fr' };
+            return { gridTemplateColumns: 'repeat(6, 1fr)', gridAutoRows: '1fr' };
+        }
+
+        // 37-50 pessoas
+        if (isMobile) return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(60px, 1fr)' };
+        if (isTablet) return { gridTemplateColumns: 'repeat(6, 1fr)', gridAutoRows: '1fr' };
+        return { gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: '1fr' };
     };
 
     return (
@@ -48,6 +89,14 @@ export default function VideoGrid({ participants, userId, remoteUsers, localVide
             style={{
                 display: 'grid',
                 ...getGridStyle(),
+                gap: count > 16 ? '4px' : '8px',
+                width: '100%',
+                height: '100%',
+                maxHeight: '100%',
+                overflowY: count > 9 ? 'auto' : 'hidden',
+                overflowX: 'hidden',
+                padding: count > 16 ? '4px' : '8px',
+                boxSizing: 'border-box',
                 animation: 'gridEntrance 0.45s ease-out forwards',
             }}
         >

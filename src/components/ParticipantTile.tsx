@@ -60,8 +60,12 @@ export default function ParticipantTile({
                 const vid = container.querySelector('video') as HTMLVideoElement;
                 if (vid) {
                     vid.style.cssText = 'width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;top:0!important;left:0!important;';
-                    vid.style.transform = 'none';
-                    vid.style.webkitTransform = 'none';
+                    if (isLocal) {
+                        vid.style.transform = 'scaleX(-1)';
+                    } else {
+                        vid.style.transform = 'none';
+                        vid.style.webkitTransform = 'none';
+                    }
                 }
                 const wrap = container.querySelector('div');
                 if (wrap) {
