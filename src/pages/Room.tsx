@@ -550,6 +550,24 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     };
   }, [roomName, userId, userName]);
 
+  useEffect(() => {
+    const remoteParticipants = participants.filter(p => p.userId !== userId);
+    if (remoteParticipants.length === 0) return;
+
+    setRemoteUsers(prev => {
+      const updated = [...prev];
+      remoteParticipants.forEach(p => {
+        const exists = updated.find(u =>
+          String(u.uid) === String(p.userId) || u.name === p.userName
+        );
+        if (!exists) {
+          updated.push({ uid: p.userId, name: p.userName });
+        }
+      });
+      return updated;
+    });
+  }, [participants]);
+
   // Chat auto-scroll
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -700,27 +718,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
     }),
   ];
 
-  // ── Keep participants list in sync (separate effect for socket-ref safety) ──
-  // NOTE: All socket event listeners are now registered inside the main init useEffect above.
-  useEffect(() => {
-    const remoteParticipants = participants.filter(p => p.userId !== userId);
-    if (remoteParticipants.length > 0 && remoteUsers.length === 0) {
-      // Participante entrou via socket mas Agora ainda não publicou
-      // Adiciona como remoteUser temporário para sair da WaitingScreen
-      setRemoteUsers(prev => {
-        const updated = [...prev];
-        remoteParticipants.forEach(p => {
-          const exists = updated.find(u => 
-            String(u.uid) === p.userId || u.name === p.userName
-          );
-          if (!exists) {
-            updated.push({ uid: p.userId, name: p.userName });
-          }
-        });
-        return updated;
-      });
-    }
-  }, [participants]);
+
 
   const remoteUsersMap = remoteUsers.reduce((acc: any, u: any) => {
     acc[String(u.uid)] = u;
