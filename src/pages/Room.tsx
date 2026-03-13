@@ -1327,9 +1327,9 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                   {[
                     { icon: "📺", label: "Compartilhar tela" },
                     { icon: "CC", label: "Legendas", isText: true },
-                    { icon: micOn ? "🔊" : "🔇", label: micOn ? "Mutar todos" : "Desmutar" },
+                    { icon: "🔇", label: "Mutar todos", onClick: handleMuteAllUnified },
                   ].map(item => (
-                    <MenuIconBtn key={item.label} icon={item.icon} label={item.label} isText={item.isText} />
+                    <MenuIconBtn key={item.label} icon={item.icon} label={item.label} isText={item.isText} onClick={item.onClick} />
                   ))}
                 </div>
 
@@ -1779,9 +1779,11 @@ function Btn({ active, defaultBg = "#3A3A3C", activeBg, activeColor, defaultColo
   );
 }
 
-function MenuIconBtn({ icon, label, isText }: { icon: string; label: string; isText?: boolean; key?: any }) {
+function MenuIconBtn({ icon, label, isText, onClick }: { icon: string; label: string; isText?: boolean; onClick?: () => void; key?: any }) {
   return (
-    <button style={{
+    <button 
+      onClick={onClick}
+      style={{
       flex: 1, padding: "12px 4px",
       background: "#2A3942", border: "none", borderRadius: 12,
       cursor: "pointer", display: "flex", flexDirection: "column",
