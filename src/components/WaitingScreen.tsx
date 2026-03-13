@@ -18,10 +18,31 @@ export default function WaitingScreen({
     const videoContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (!localVideoTrack || !videoContainerRef.current) return;
-        const container = videoContainerRef.current;
-        if (container.querySelector('video')) return;
-        localVideoTrack.play(container);
+        const tryPlay = (attempts = 0) => {
+            if (!localVideoTrack) {
+                if (attempts < 15) setTimeout(() => tryPlay(attempts + 1), 400);
+                return;
+            }
+            const container = videoContainerRef.current;
+            if (!container) return;
+            if (container.querySelector('video')) return;
+            try {
+                localVideoTrack.play(container);
+                setTimeout(() => {
+                    const vid = container.querySelector('video');
+                    if (vid) {
+                        vid.style.cssText =
+                            'width:100%!important;height:100%!important;' +
+                            'object-fit:cover!important;position:absolute!important;' +
+                            'top:0!important;left:0!important;' +
+                            'transform:scaleX(-1)!important;';
+                    }
+                }, 150);
+            } catch (e) {
+                console.warn('Erro ao reproduzir vídeo:', e);
+            }
+        };
+        tryPlay();
     }, [localVideoTrack]);
 
     const handleCopy = async () => {
