@@ -1250,6 +1250,8 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
               zIndex: 301,
               animation: "waSlideUp 0.28s ease",
               paddingBottom: 28,
+              maxHeight: '90vh',
+              overflowY: 'auto'
             }}>
               {/* Drag handle */}
               <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 6px" }}>
