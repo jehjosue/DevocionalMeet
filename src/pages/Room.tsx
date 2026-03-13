@@ -251,7 +251,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
 
   const userRole = localStorage.getItem('userRole');
   const isHost = initialRoom?.hostId === userId || userRole === 'leader' || searchParams.get("host") === "true";
-  const totalParticipants = participants.length > 0 ? participants.length : 1;
+
 
   // ── Clock ──
   useEffect(() => {
@@ -697,7 +697,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
   // ── Stacked avatars for nav bar (up to 3 remote + local) ──
   const avatarList = [userName, ...sortedRemote.slice(0, 2).map(u => u.name)];
   const groupName = sortedRemote.length > 0
-    ? `${sortedRemote[0].name.split(" ")[0]} + ${totalParticipants - 1}`
+    ? (sortedRemote.length === 1 ? sortedRemote[0].name : `${sortedRemote[0].name.split(" ")[0]} + ${sortedRemote.length - 1}`)
     : userName;
 
   const handRaisedNames = [
@@ -862,7 +862,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
               {groupName} {isHost && <span style={{ fontSize: '0.7rem', color: '#FF7A00' }}>▼</span>}
             </div>
             <div style={{ fontSize: "0.65rem", color: "#8696A0" }}>
-              {totalParticipants} participante{totalParticipants !== 1 ? "s" : ""}
+              {remoteUsers.length} participante{remoteUsers.length !== 1 ? "s" : ""}
             </div>
           </div>
 
@@ -985,7 +985,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
             <div style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 999, background: '#2563EB', color: '#fff', fontSize: '0.65rem', fontWeight: 700, fontFamily: 'system-ui', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', border: '2px solid #2C2C2E' }}>
-              {participants.length}
+              {remoteUsers.length}
             </div>
           </button>
 
@@ -1075,7 +1075,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                         fontFamily: 'system-ui',
                         marginLeft: '10px',
                       }}>
-                        {participants.length}
+                        {remoteUsers.length}
                       </span>
                     </div>
                     <button
@@ -1388,7 +1388,7 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
               }}>‹</button>
               <div>
                 <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#E9EDEF" }}>Mensagens na chamada</div>
-                <div style={{ fontSize: "0.7rem", color: "#8696A0" }}>{totalParticipants} participantes</div>
+                <div style={{ fontSize: "0.7rem", color: "#8696A0" }}>{remoteUsers.length} participante{remoteUsers.length !== 1 ? "s" : ""}</div>
               </div>
             </div>
 

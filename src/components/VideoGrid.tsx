@@ -20,96 +20,74 @@ export default function VideoGrid({ participants, userId, remoteUsers, localVide
 
     const getGridStyle = (): React.CSSProperties => {
         const isMobile = window.innerWidth < 768;
-        const isTablet = window.innerWidth >= 768 && window.innerWidth < 1200;
-        const isDesktop = window.innerWidth >= 1200;
 
-        if (count === 1) return {
-            gridTemplateColumns: '1fr',
-            gridTemplateRows: '1fr',
-        };
+        if (count === 1) return { gridTemplateColumns: '1fr', gridTemplateRows: '1fr' };
+        
+        if (count === 2) {
+            return {
+                gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+                gridTemplateRows: isMobile ? '1fr 1fr' : '1fr',
+            };
+        }
 
-        if (count === 2) return {
-            gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr',
-            gridTemplateRows: '1fr',
-        };
+        if (count === 3) {
+            return {
+                gridTemplateColumns: '1fr 1fr',
+                gridTemplateRows: '1fr 1fr',
+                gridTemplateAreas: isMobile ? '"a a" "b c"' : '"a a" "b c"',
+            };
+        }
 
-        if (count === 3) return {
-            gridTemplateColumns: '1fr 1fr',
-            gridTemplateRows: '1fr 1fr',
-            gridTemplateAreas: '"a a" "b c"',
-        };
-
-        if (count === 4) return {
-            gridTemplateColumns: '1fr 1fr',
-            gridTemplateRows: '1fr 1fr',
-        };
-
+        if (count === 4) return { gridTemplateColumns: 'repeat(2, 1fr)', gridTemplateRows: 'repeat(2, 1fr)' };
+        
         if (count <= 6) {
-            if (isMobile) return { gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: '1fr' };
-            return { gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(2, 1fr)' };
+            return {
+                gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+                gridTemplateRows: isMobile ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
+            };
         }
 
-        if (count <= 9) {
-            if (isMobile) return { gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: 'minmax(120px, 1fr)' };
-            return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '1fr' };
-        }
-
-        if (count <= 12) {
-            if (isMobile) return { gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: 'minmax(100px, 1fr)' };
-            if (isTablet) return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '1fr' };
-            return { gridTemplateColumns: 'repeat(4, 1fr)', gridAutoRows: '1fr' };
-        }
-
-        if (count <= 16) {
-            if (isMobile) return { gridTemplateColumns: 'repeat(2, 1fr)', gridAutoRows: 'minmax(90px, 1fr)' };
-            if (isTablet) return { gridTemplateColumns: 'repeat(4, 1fr)', gridAutoRows: '1fr' };
-            return { gridTemplateColumns: 'repeat(4, 1fr)', gridAutoRows: '1fr' };
-        }
-
-        if (count <= 25) {
-            if (isMobile) return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(80px, 1fr)' };
-            if (isTablet) return { gridTemplateColumns: 'repeat(4, 1fr)', gridAutoRows: '1fr' };
-            return { gridTemplateColumns: 'repeat(5, 1fr)', gridAutoRows: '1fr' };
-        }
-
-        if (count <= 36) {
-            if (isMobile) return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(70px, 1fr)' };
-            if (isTablet) return { gridTemplateColumns: 'repeat(5, 1fr)', gridAutoRows: '1fr' };
-            return { gridTemplateColumns: 'repeat(6, 1fr)', gridAutoRows: '1fr' };
-        }
-
-        // 37-50 pessoas
-        if (isMobile) return { gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: 'minmax(60px, 1fr)' };
-        if (isTablet) return { gridTemplateColumns: 'repeat(6, 1fr)', gridAutoRows: '1fr' };
-        return { gridTemplateColumns: 'repeat(7, 1fr)', gridAutoRows: '1fr' };
+        // 7-9+ participantes
+        const cols = isMobile ? 2 : 3;
+        return {
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+            gridAutoRows: '1fr',
+        };
     };
 
     return (
         <div
-            className="video-grid bg-[#000] p-2 gap-2 w-full h-full"
+            className="video-grid"
             style={{
                 display: 'grid',
                 ...getGridStyle(),
-                gap: count > 16 ? '4px' : '8px',
+                gap: '8px',
                 width: '100%',
                 height: '100%',
                 maxHeight: '100%',
-                overflowY: count > 9 ? 'auto' : 'hidden',
-                overflowX: 'hidden',
-                padding: count > 16 ? '4px' : '8px',
+                overflowY: count > 6 ? 'auto' : 'hidden',
+                padding: '8px',
                 boxSizing: 'border-box',
-                animation: 'gridEntrance 0.45s ease-out forwards',
+                transition: 'all 0.3s ease',
             }}
         >
             {participants.map((p, index) => {
                 const isLocal = p.userId === userId || p.userId === "local";
 
-                // Layout especial para 3 participantes
-                let specialStyle: React.CSSProperties = {};
+                let specialStyle: React.CSSProperties = {
+                    transition: 'all 0.3s ease',
+                    aspectRatio: '16/9',
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    borderRadius: '12px',
+                    overflow: 'hidden'
+                };
+
                 if (count === 3) {
-                    if (index === 0) specialStyle = { gridArea: 'a' };
-                    else if (index === 1) specialStyle = { gridArea: 'b' };
-                    else if (index === 2) specialStyle = { gridArea: 'c' };
+                    if (index === 0) specialStyle.gridArea = 'a';
+                    else if (index === 1) specialStyle.gridArea = 'b';
+                    else if (index === 2) specialStyle.gridArea = 'c';
                 }
 
                 const remoteUser = !isLocal ? remoteUsers[p.userId] : undefined;
