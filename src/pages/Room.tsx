@@ -980,23 +980,23 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
           borderRadius: "24px 24px 0 0",
           zIndex: 100,
         }}>
-          <button onClick={toggleVideo} style={{ width:56, height:56, borderRadius:16, background: videoOn ? "#3A3A3C" : "#ea4335", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={toggleVideo} style={{ width:56, height:56, borderRadius:16, background: videoOn ? "#2563EB" : "#F97316", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition: "all 0.3s ease", boxShadow: videoOn ? "0 4px 12px rgba(37,99,235,0.4)" : "none" }}>
             <IconCamera off={!videoOn} />
           </button>
-          <button onClick={toggleMic} style={{ width:56, height:56, borderRadius:16, background: micOn ? "#3A3A3C" : "#ea4335", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={toggleMic} style={{ width:56, height:56, borderRadius:16, background: micOn ? "#2563EB" : "#F97316", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition: "all 0.3s ease", boxShadow: micOn ? "0 4px 12px rgba(37,99,235,0.4)" : "none" }}>
             <IconMic muted={!micOn} />
           </button>
           
-          <button onClick={() => { setShowReactions(p => !p); setShowMenu(false); }} style={{ width:56, height:56, borderRadius:16, background: showReactions ? "#BBDEFB" : "#3A3A3C", color: showReactions ? "#1565C0" : "#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={() => { setShowReactions(p => !p); setShowMenu(false); }} style={{ width:56, height:56, borderRadius:16, background: showReactions ? "#3B82F6" : "#3A3A3C", color: "#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition: "all 0.3s ease" }}>
             <IconEmoji />
           </button>
           
           <button
             onPointerDown={() => { setShowParticipants(p => !p); setShowMenu(false); setActivitiesOpen(false); }}
             style={{
-              width: 56, height: 56, borderRadius: 16, background: showParticipants ? '#BBDEFB' : '#3A3A3C', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+              width: 56, height: 56, borderRadius: 16, background: showParticipants ? '#3B82F6' : '#3A3A3C', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', 
               position: 'relative', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none', outline: 'none',
-              color: showParticipants ? '#1565C0' : '#ffffff'
+              color: '#ffffff', transition: 'all 0.3s ease'
             }}
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1005,24 +1005,31 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            <div style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 999, background: '#2563EB', color: '#fff', fontSize: '0.65rem', fontWeight: 700, fontFamily: 'system-ui', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', border: '2px solid #2C2C2E' }}>
+            <div style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 999, background: '#F97316', color: '#fff', fontSize: '0.65rem', fontWeight: 700, fontFamily: 'system-ui', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', border: '2px solid #2C2C2E' }}>
               {remoteUsers.length}
             </div>
           </button>
 
-          <button onClick={() => { setShowMenu(p => !p); setActivitiesOpen(false); setShowParticipants(false); }} style={{ width:56, height:56, borderRadius:16, background: showMenu || activitiesOpen ? "#4A4A4C" : "#3A3A3C", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <button onClick={() => { setShowMenu(p => !p); setActivitiesOpen(false); setShowParticipants(false); }} style={{ width:56, height:56, borderRadius:16, background: showMenu || activitiesOpen ? "#3B82F6" : "#3A3A3C", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition: "all 0.3s ease" }}>
             <IconDots />
           </button>
 
-          <button onClick={() => { setActivitiesOpen(p => !p); setShowMenu(false); }} style={{ width:56, height:56, borderRadius:16, background: activitiesOpen ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.05)", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-             <span style={{ fontSize: "1.4rem" }}>✨</span>
-          </button>
-
           <div style={{ width:1, height:38, background:"rgba(255,255,255,0.12)", margin:"0 4px" }} />
-          <button onClick={leaveCall} style={{ width:76, height:56, borderRadius:999, background:"#D32F2F", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 18px rgba(211,47,47,0.5)" }}>
+          <button onClick={leaveCall} style={{ width:76, height:56, borderRadius:16, background:"#F97316", color:"#fff", border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 18px rgba(249,115,22,0.4)", transition: "all 0.3s ease" }}>
             <IconEndCall />
           </button>
         </div>
+
+        {/* Atividades (Spotify, Whiteboard, etc) */}
+        <Activities
+          isOpen={activitiesOpen}
+          onClose={() => setActivitiesOpen(false)}
+          roomId={roomName}
+          userName={userName}
+          socket={socketObj}
+          isHost={isHost}
+          userId={localId}
+        />
 
           {/* PAINEL DE PARTICIPANTES */}
           <AnimatePresence>
@@ -1333,6 +1340,20 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                   ))}
                 </div>
 
+                {/* Desfocar Fundo */}
+                <button
+                  onClick={() => { toggleBlurAI(); setShowMenu(false); }}
+                  disabled={isBlurLoading}
+                  style={{
+                    width: "100%", padding: "14px",
+                    background: isBlurEnabled ? "#3B82F6" : "#2A3942", border: "none", borderRadius: 12,
+                    color: "#E9EDEF", fontSize: "0.88rem", fontWeight: 600,
+                    cursor: isBlurLoading ? "wait" : "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>👤</span> {isBlurLoading ? "Carregando desfoque..." : isBlurEnabled ? "Fundo Desfocado (Ligado)" : "Desfocar Fundo"}
+                </button>
+
                 {/* Em movimento */}
                 <button style={{
                   width: "100%", padding: "14px",
@@ -1341,6 +1362,19 @@ export default function Room({ initialRoom, initialParticipants, userId, userNam
                   cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10,
                 }}>
                   <span style={{ fontSize: "1.2rem" }}>🚗</span> Em movimento
+                </button>
+
+                {/* Activities */}
+                <button
+                  onClick={() => { setActivitiesOpen(true); setShowMenu(false); }}
+                  style={{
+                    width: "100%", padding: "14px",
+                    background: "#2A3942", border: "none", borderRadius: 12,
+                    color: "#E9EDEF", fontSize: "0.88rem", fontWeight: 600,
+                    cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10,
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>✨</span> Atividades Colaborativas
                 </button>
 
                 {/* Messages / Add participants */}
