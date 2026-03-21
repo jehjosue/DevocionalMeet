@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Cloud } from 'lucide-react';
 
 const WORDS = ["Fé", "Amor", "Graça", "Paz", "Alegria", "Jesus", "Vida", "Luz"];
