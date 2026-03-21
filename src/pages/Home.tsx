@@ -327,27 +327,35 @@ export default function Home() {
         transition: "background 0.5s ease",
       }}
     >
-      {/* BACKGROUND MESH BLOBS MODERNO */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* BACKGROUND MESH BLOBS MODERNO (Refatorado para Performance) */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {isDark ? (
           <>
             <motion.div
               animate={{
-                x: [0, 50, -50, 0],
-                y: [0, -50, 50, 0],
+                x: [0, 40, -40, 0],
+                y: [0, -40, 40, 0],
               }}
-              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] rounded-full opacity-20 blur-[100px]"
-              style={{ background: "radial-gradient(circle, rgba(37,99,235,0.8) 0%, transparent 70%)" }}
+              transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] rounded-full opacity-30"
+              style={{
+                background: "radial-gradient(circle, rgba(37,99,235,0.5) 0%, rgba(37,99,235,0) 65%)",
+                willChange: "transform",
+                transform: "translateZ(0)"
+              }}
             />
             <motion.div
               animate={{
-                x: [0, -40, 40, 0],
-                y: [0, 40, -40, 0],
+                x: [0, -30, 30, 0],
+                y: [0, 30, -30, 0],
               }}
-              transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-              className="absolute top-[40%] -right-[20%] w-[60vw] h-[60vw] rounded-full opacity-10 blur-[90px]"
-              style={{ background: "radial-gradient(circle, rgba(139,92,246,0.6) 0%, transparent 70%)" }}
+              transition={{ duration: 25, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+              className="absolute top-[40%] -right-[20%] w-[60vw] h-[60vw] rounded-full opacity-20"
+              style={{
+                background: "radial-gradient(circle, rgba(139,92,246,0.4) 0%, rgba(139,92,246,0) 65%)",
+                willChange: "transform",
+                transform: "translateZ(0)"
+              }}
             />
           </>
         ) : (
@@ -357,18 +365,26 @@ export default function Home() {
                 x: [0, 30, -30, 0],
                 y: [0, -30, 30, 0],
               }}
-              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] rounded-full opacity-30 blur-[100px]"
-              style={{ background: "radial-gradient(circle, rgba(59,130,246,0.7) 0%, transparent 70%)" }}
+              transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] rounded-full opacity-40"
+              style={{
+                background: "radial-gradient(circle, rgba(59,130,246,0.4) 0%, rgba(59,130,246,0) 65%)",
+                willChange: "transform",
+                transform: "translateZ(0)"
+              }}
             />
             <motion.div
               animate={{
-                x: [0, -40, 40, 0],
-                y: [0, 40, -40, 0],
+                x: [0, -30, 30, 0],
+                y: [0, 30, -30, 0],
               }}
-              transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-              className="absolute top-[20%] -right-[20%] w-[80vw] h-[80vw] rounded-full opacity-20 blur-[120px]"
-              style={{ background: "radial-gradient(circle, rgba(96,165,250,0.5) 0%, transparent 70%)" }}
+              transition={{ duration: 25, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+              className="absolute top-[30%] -right-[20%] w-[70vw] h-[70vw] rounded-full opacity-30"
+              style={{
+                background: "radial-gradient(circle, rgba(96,165,250,0.3) 0%, rgba(96,165,250,0) 65%)",
+                willChange: "transform",
+                transform: "translateZ(0)"
+              }}
             />
           </>
         )}
