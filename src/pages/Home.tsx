@@ -37,6 +37,7 @@ export default function Home() {
   const [userName, setUserName] = useState<string>(nomeSalvo);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [inputCode, setInputCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   // Detecção automática de link de convite
   useEffect(() => {
@@ -111,7 +112,6 @@ export default function Home() {
     };
   }, [showMenu]);
 
-  // Opção 1 — Gerar link sem entrar na sala
   const handleGenerateLink = async () => {
     setShowMenu(false);
 
@@ -120,6 +120,8 @@ export default function Home() {
       showToast('⚠️ Digite seu nome antes de gerar o link');
       return;
     }
+    
+    setIsLoading(true);
 
     let userId = localStorage.getItem('dmeet_userId');
     if (!userId) {
@@ -192,6 +194,8 @@ export default function Home() {
       } else {
         showToast('❌ Erro: ' + (err.message || 'desconhecido'));
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -211,7 +215,6 @@ export default function Home() {
     }
   };
 
-  // Opção 2 — Iniciar reunião agora (entrar direto)
   const handleStartNow = async () => {
     setShowMenu(false);
     enterFullscreen();
@@ -221,6 +224,8 @@ export default function Home() {
       showToast('⚠️ Digite seu nome antes de iniciar');
       return;
     }
+    
+    setIsLoading(true);
 
     let userId = localStorage.getItem('dmeet_userId');
     if (!userId) {
@@ -283,6 +288,8 @@ export default function Home() {
       } else {
         showToast('❌ Erro: ' + (err.message || 'desconhecido'));
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -313,32 +320,69 @@ export default function Home() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center py-6 px-6 font-sans relative"
+      className="min-h-screen flex flex-col items-center justify-center py-6 px-6 font-sans relative overflow-hidden"
       style={{
-        background: isDark ? "#0A0A0F" : "linear-gradient(160deg, #EEF2FF 0%, #F8FAFF 100%)",
+        background: isDark ? "#09090E" : "#F4F7FB",
         color: isDark ? "#E9EDEF" : "#1e293b",
-        transition: 'all 0.3s ease'
+        transition: "background 0.5s ease",
       }}
     >
-      {/* Botão de Toggle de Tema */}
+      {/* BACKGROUND MESH BLOBS MODERNO */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {isDark ? (
+          <>
+            <motion.div
+              animate={{
+                x: [0, 50, -50, 0],
+                y: [0, -50, 50, 0],
+              }}
+              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] rounded-full opacity-20 blur-[100px]"
+              style={{ background: "radial-gradient(circle, rgba(37,99,235,0.8) 0%, transparent 70%)" }}
+            />
+            <motion.div
+              animate={{
+                x: [0, -40, 40, 0],
+                y: [0, 40, -40, 0],
+              }}
+              transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+              className="absolute top-[40%] -right-[20%] w-[60vw] h-[60vw] rounded-full opacity-10 blur-[90px]"
+              style={{ background: "radial-gradient(circle, rgba(139,92,246,0.6) 0%, transparent 70%)" }}
+            />
+          </>
+        ) : (
+          <>
+            <motion.div
+              animate={{
+                x: [0, 30, -30, 0],
+                y: [0, -30, 30, 0],
+              }}
+              transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] rounded-full opacity-30 blur-[100px]"
+              style={{ background: "radial-gradient(circle, rgba(59,130,246,0.7) 0%, transparent 70%)" }}
+            />
+            <motion.div
+              animate={{
+                x: [0, -40, 40, 0],
+                y: [0, 40, -40, 0],
+              }}
+              transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+              className="absolute top-[20%] -right-[20%] w-[80vw] h-[80vw] rounded-full opacity-20 blur-[120px]"
+              style={{ background: "radial-gradient(circle, rgba(96,165,250,0.5) 0%, transparent 70%)" }}
+            />
+          </>
+        )}
+      </div>
+
+      {/* Botão de Toggle de Tema (Glass) */}
       <button
         onClick={toggleTheme}
+        className="absolute top-6 right-6 w-11 h-11 rounded-2xl flex items-center justify-center z-50 transition-all hover:scale-105 active:scale-95"
         style={{
-          position: 'absolute',
-          top: '24px',
-          right: '24px',
-          width: '44px',
-          height: '44px',
-          borderRadius: '12px',
-          background: isDark ? '#1F2C34' : '#fff',
-          border: isDark ? '1.5px solid #2F3C44' : '1.5px solid #E2E8F0',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'all 0.2s ease',
-          zIndex: 100,
-          boxShadow: isDark ? 'none' : '0 4px 12px rgba(37,99,235,0.08)'
+          background: isDark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.7)",
+          backdropFilter: "blur(12px)",
+          border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(255,255,255,0.8)",
+          boxShadow: isDark ? "0 4px 16px rgba(0,0,0,0.3)" : "0 4px 16px rgba(0,0,0,0.05)",
         }}
       >
         {isDark ? (
@@ -355,375 +399,358 @@ export default function Home() {
         )}
       </button>
 
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        {isDark ? (
-          <div
-            className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full opacity-20"
-            style={{
-              background: "radial-gradient(ellipse, #2563EB 0%, transparent 70%)",
-              filter: "blur(80px)",
-            }}
-          />
-        ) : (
-          <div
-            className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full opacity-10"
-            style={{
-              background: "radial-gradient(ellipse, #3B82F6 0%, transparent 70%)",
-              filter: "blur(80px)",
-            }}
-          />
-        )}
-      </div>
-
+      {/* CONTEÚDO PRINCIPAL (Glass Card) */}
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="max-w-[480px] w-full space-y-6 relative z-10"
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-[440px] relative z-10 flex flex-col gap-6"
       >
-        {/* Header */}
-        <div className="text-center space-y-3">
-          <div className="flex justify-center">
-            <motion.div
-              animate={{ y: [0, -5, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              className="p-3 rounded-2xl border"
-              style={{
-                background: isDark ? "rgba(37,99,235,0.1)" : "rgba(37,99,235,0.07)",
-                borderColor: isDark ? "rgba(37,99,235,0.3)" : "rgba(37,99,235,0.2)",
-              }}
-            >
-              <BookOpen className="w-8 h-8" style={{ color: "#2563EB" }} />
-            </motion.div>
-          </div>
-          <div className="space-y-1">
-            <h1 className="text-4xl font-black tracking-tighter" style={{ color: isDark ? "#fff" : "#0F172A" }}>
+        {/* LOGO E TEXTOS */}
+        <div className="text-center space-y-4 mb-4">
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+            className="w-16 h-16 mx-auto rounded-3xl flex items-center justify-center"
+            style={{
+              background: isDark ? "linear-gradient(135deg, rgba(37,99,235,0.2), rgba(37,99,235,0.05))" : "linear-gradient(135deg, rgba(37,99,235,0.1), rgba(255,255,255,0.8))",
+              border: isDark ? "1px solid rgba(37,99,235,0.3)" : "1px solid rgba(255,255,255,0.9)",
+              boxShadow: isDark ? "0 8px 32px rgba(37,99,235,0.15)" : "0 8px 32px rgba(37,99,235,0.08)",
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            <BookOpen strokeWidth={2.5} className="w-8 h-8 text-blue-600 dark:text-blue-400 drop-shadow-md" />
+          </motion.div>
+          <div className="space-y-1.5">
+            <h1 className="text-4xl font-black tracking-tight text-transparent bg-clip-text" style={{ backgroundImage: isDark ? "linear-gradient(90deg, #93C5FD, #3B82F6)" : "linear-gradient(90deg, #1E3A8A, #2563EB)" }}>
               DevocionalMeet
             </h1>
-            <p className="text-sm font-medium tracking-widest uppercase" style={{ color: isDark ? "#8896AA" : "#64748B" }}>
+            <p className="text-[0.8rem] font-bold tracking-[0.2em] uppercase" style={{ color: isDark ? "#8896AA" : "#64748B" }}>
               Comunhão &amp; Fé
             </p>
           </div>
         </div>
 
-        {/* Container Nome e Botões */}
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-[11px] font-bold uppercase tracking-widest ml-1" style={{ color: isDark ? "rgba(255,255,255,0.5)" : "#64748B" }}>
-              Seu nome
-            </label>
-            <input
-              type="text"
-              placeholder="Como você quer aparecer"
-              value={userName}
-              onChange={(e) => {
-                setUserName(e.target.value);
-                salvarNome(e.target.value);
-              }}
-              className="w-full rounded-xl px-4 py-4 text-base border-2 transition-all outline-none"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && userName.trim()) {
-                  const rId = searchParams.get("roomId");
-                  if (rId) handleJoinRoom(rId);
-                }
-              }}
-              style={{
-                background: isDark ? "#1C1C2E" : "#fff",
-                borderColor: isDark ? "#2A2A3E" : "#E2E8F0",
-                color: isDark ? "#fff" : "#101828",
-              }}
-              onFocus={(e) => e.currentTarget.style.borderColor = '#2563EB'}
-              onBlur={(e) => e.currentTarget.style.borderColor = isDark ? "#2A2A3E" : "#E2E8F0"}
-            />
-          </div>
+        {/* CONTAINER DO FORMULÁRIO (GLASSMORPHISM) */}
+        <div
+          className="p-6 md:p-8 rounded-[32px] w-full"
+          style={{
+            background: isDark ? "rgba(20, 20, 30, 0.4)" : "rgba(255, 255, 255, 0.6)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.8)",
+            boxShadow: isDark ? "0 24px 48px rgba(0,0,0,0.4)" : "0 24px 48px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div className="space-y-6">
+            {/* INPUT DE NOME */}
+            <div className="space-y-2 relative">
+              <label className="text-xs font-bold uppercase tracking-widest ml-1" style={{ color: isDark ? "rgba(255,255,255,0.5)" : "#64748B" }}>
+                Seu nome
+              </label>
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-50">
+                  <User size={18} />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Como você quer aparecer"
+                  value={userName}
+                  onChange={(e) => {
+                    setUserName(e.target.value);
+                    salvarNome(e.target.value);
+                  }}
+                  className="w-full rounded-2xl pl-11 pr-4 py-4 text-[1.05rem] transition-all outline-none font-medium"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && userName.trim()) {
+                      const rId = searchParams.get("roomId");
+                      if (rId) handleJoinRoom(rId);
+                    }
+                  }}
+                  style={{
+                    background: isDark ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.8)",
+                    border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(37,99,235,0.15)",
+                    color: isDark ? "#fff" : "#101828",
+                    boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3B82F6';
+                    e.currentTarget.style.boxShadow = isDark ? '0 0 0 3px rgba(59,130,246,0.2)' : '0 0 0 4px rgba(59,130,246,0.15)';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? "rgba(255,255,255,0.1)" : "rgba(37,99,235,0.15)";
+                    e.currentTarget.style.boxShadow = "inset 0 2px 4px rgba(0,0,0,0.02)";
+                  }}
+                />
+              </div>
+            </div>
 
-          <div style={{
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: '10px',
-            width: '100%',
-          }}>
-            {searchParams.get("roomId") ? (
-              <button
-                onClick={() => handleJoinRoom(searchParams.get("roomId")!)}
-                disabled={!userName.trim()}
-                style={{
-                  flex: 1,
-                  background: '#2563EB',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '999px',
-                  padding: '15px 0',
-                  fontSize: '0.97rem',
-                  fontWeight: '700',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  cursor: userName.trim() ? 'pointer' : 'not-allowed',
-                  opacity: userName.trim() ? 1 : 0.6,
-                  transition: 'background 0.15s ease',
-                }}
-                onMouseEnter={e => { if (userName.trim()) e.currentTarget.style.background = '#1D4ED8' }}
-                onMouseLeave={e => { if (userName.trim()) e.currentTarget.style.background = '#2563EB' }}
-              >
-                Entrar na Reunião
-              </button>
-            ) : (
-              <button
-                ref={btnRef}
-                data-menu-btn="true"
-                onClick={handleOpenMenu}
-                style={{
-                  flex: 1,
-                  background: '#2563EB',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '999px',
-                  padding: '15px 0',
-                  fontSize: '0.97rem',
-                  fontWeight: '700',
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  cursor: 'pointer',
-                  transition: 'background 0.15s ease',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#1D4ED8'}
-                onMouseLeave={e => e.currentTarget.style.background = '#2563EB'}
-              >
-                Nova reunião
-              </button>
-            )}
+            {/* BOTÕES DE AÇÃO */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {searchParams.get("roomId") ? (
+                <button
+                  onClick={() => handleJoinRoom(searchParams.get("roomId")!)}
+                  disabled={!userName.trim()}
+                  className="group relative w-full rounded-2xl py-4 flex justify-center items-center overflow-hidden transition-all active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
+                    color: "#fff",
+                    opacity: userName.trim() ? 1 : 0.6,
+                    cursor: userName.trim() ? "pointer" : "not-allowed",
+                    boxShadow: "0 8px 24px rgba(37,99,235,0.3)",
+                  }}
+                >
+                  <span className="relative z-10 text-[1rem] font-bold tracking-wide flex items-center gap-2">
+                    {isLoading ? (
+                      <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                      </svg>
+                    ) : (
+                      <>
+                        Entrar na Reunião
+                        <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
+                      </>
+                    )}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  ref={btnRef}
+                  data-menu-btn="true"
+                  onClick={handleOpenMenu}
+                  className="group relative flex-1 rounded-2xl py-4 flex justify-center items-center overflow-hidden transition-transform active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, #2563EB 0%, #1E3A8A 100%)",
+                    color: "#fff",
+                    boxShadow: isDark ? "0 8px 24px rgba(37,99,235,0.3)" : "0 8px 24px rgba(37,99,235,0.25)",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div className="absolute inset-0 bg-white/20 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300 ease-out" />
+                  <span className="relative z-10 text-[1rem] font-bold flex items-center gap-2">
+                    {isLoading ? (
+                      <svg className="animate-spin w-5 h-5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                      </svg>
+                    ) : (
+                      <>
+                        <Plus size={20} /> Nova reunião
+                      </>
+                    )}
+                  </span>
+                </button>
+              )}
 
-            <button
-              onClick={() => setShowCodeModal(true)}
-              style={{
-                flex: 1,
-                background: '#ffffff',
-                color: '#1a1a1a',
-                border: '1.5px solid #D1D5DB',
-                borderRadius: '999px',
-                padding: '15px 0',
-                fontSize: '0.97rem',
-                fontWeight: '500',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.borderColor = '#9CA3AF'
-                e.currentTarget.style.background = '#F9FAFB'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.borderColor = '#D1D5DB'
-                e.currentTarget.style.background = '#ffffff'
-              }}
-            >
-              Participar com código
-            </button>
+              <button
+                onClick={() => setShowCodeModal(true)}
+                className="flex-1 rounded-2xl py-4 flex justify-center items-center transition-all active:scale-[0.98]"
+                style={{
+                  background: isDark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.9)",
+                  border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(37,99,235,0.15)",
+                  color: isDark ? "#E2E8F0" : "#1E293B",
+                  fontSize: "1rem",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "#fff";
+                  e.currentTarget.style.borderColor = isDark ? "rgba(255,255,255,0.2)" : "rgba(37,99,235,0.3)";
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.9)";
+                  e.currentTarget.style.borderColor = isDark ? "rgba(255,255,255,0.1)" : "rgba(37,99,235,0.15)";
+                }}
+              >
+                Tentar código
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Versículos POR ÚLTIMO */}
-        <DailyVerses />
+        {/* VERSÍCULOS DO DIA */}
+        <div className="mt-4">
+          <DailyVerses />
+        </div>
 
         {/* DROPDOWN VIA PORTAL */}
-        {showMenu && createPortal(
-          <div
-            data-menu="true"
-            style={{
-              position: 'fixed',
-              top: `${menuPos.top}px`,
-              left: `${menuPos.left}px`,
-              width: `${menuPos.width}px`,
-              zIndex: 99999,
-              background: '#ffffff',
-              borderRadius: '16px',
-              overflow: 'hidden',
-              boxShadow: '0 8px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.06)',
-              border: '1px solid #F0F0F0',
-              animation: 'menuAppear 0.18s ease',
-            }}
-          >
+        <AnimatePresence>
+          {showMenu && (
+            <div data-menu="true">
+              {createPortal(
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  style={{
+                    position: 'absolute',
+                    top: `${menuPos.top}px`,
+                    left: `${menuPos.left}px`,
+                    width: `${menuPos.width}px`,
+                    zIndex: 99999,
+                    background: isDark ? "rgba(30, 30, 42, 0.85)" : "rgba(255, 255, 255, 0.9)",
+                    backdropFilter: "blur(24px)",
+                    WebkitBackdropFilter: "blur(24px)",
+                    borderRadius: '20px',
+                    overflow: 'hidden',
+                    boxShadow: isDark ? "0 12px 40px rgba(0,0,0,0.5)" : "0 12px 40px rgba(0,0,0,0.15)",
+                    border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(37,99,235,0.15)",
+                  }}
+                >
+                  <div
+                    onClick={handleGenerateLink}
+                    onMouseEnter={e => e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.08)" : "rgba(37,99,235,0.04)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '20px', cursor: 'pointer', transition: 'all 0.15s ease',
+                      borderBottom: isDark ? '1px solid rgba(255,255,255,0.05)' : '1px solid rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-[0.95rem] font-bold" style={{ color: isDark ? '#fff' : '#0F172A' }}>
+                        Gerar um link
+                      </span>
+                      <span className="text-xs" style={{ color: isDark ? '#9CA3AF' : '#64748B' }}>
+                        Para compartilhar com o grupo
+                      </span>
+                    </div>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/40">
+                      <span className="text-blue-600 dark:text-blue-400 font-bold">#</span>
+                    </div>
+                  </div>
 
-            {/* ── OPÇÃO 1 ── Gerar link */}
-            <div
-              onClick={handleGenerateLink}
-              onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
-              onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '20px 20px',
-                borderBottom: '1px solid #F0F0F0',
-                cursor: 'pointer',
-                background: '#ffffff',
-                transition: 'background 0.12s ease',
-              }}
-            >
-              <span style={{
-                color: '#1a1a1a',
-                fontSize: '0.95rem',
-                fontWeight: '400',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                lineHeight: '1.45',
-                flex: 1,
-                whiteSpace: 'pre-line',
-                textAlign: 'left'
-              }}>
-                {'Gerar um link da reunião\npara compartilhar'}
-              </span>
-              <svg width="22" height="22" viewBox="0 0 24 24"
-                fill="none" stroke="#1a1a1a"
-                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                style={{ marginLeft: '16px', flexShrink: 0 }}
-              >
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-              </svg>
+                  <div
+                    onClick={handleStartNow}
+                    onMouseEnter={e => e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.08)" : "rgba(37,99,235,0.04)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '20px', cursor: 'pointer', transition: 'all 0.15s ease'
+                    }}
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-[0.95rem] font-bold" style={{ color: isDark ? '#fff' : '#0F172A' }}>
+                        Iniciar agora
+                      </span>
+                      <span className="text-xs" style={{ color: isDark ? '#9CA3AF' : '#64748B' }}>
+                        Entrar direto na sala de líder
+                      </span>
+                    </div>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-green-100 dark:bg-green-900/40">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600 dark:text-green-400">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                      </svg>
+                    </div>
+                  </div>
+                </motion.div>,
+                document.body
+              )}
             </div>
-
-            {/* ── OPÇÃO 2 ── Iniciar agora */}
-            <div
-              onClick={handleStartNow}
-              onMouseEnter={e => e.currentTarget.style.background = '#F5F5F5'}
-              onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '20px 20px',
-                cursor: 'pointer',
-                background: '#ffffff',
-                transition: 'background 0.12s ease',
-                borderRadius: '0 0 16px 16px',
-              }}
-            >
-              <span style={{
-                color: '#1a1a1a',
-                fontSize: '0.95rem',
-                fontWeight: '400',
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                lineHeight: '1.45',
-                flex: 1,
-                textAlign: 'left'
-              }}>
-                Iniciar uma reunião agora
-              </span>
-              <svg width="22" height="22" viewBox="0 0 24 24"
-                fill="none" stroke="#1a1a1a"
-                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                style={{ marginLeft: '16px', flexShrink: 0 }}
-              >
-                <path d="M23 7l-7 5 7 5V7z" />
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-              </svg>
-            </div>
-
-          </div>,
-          document.body
-        )}
+          )}
+        </AnimatePresence>
       </motion.div>
 
       {/* Modal: Participar com código */}
       <AnimatePresence>
         {showCodeModal && (
-          <div
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={() => setShowCodeModal(false)}
+            className="fixed inset-0 flex items-center justify-center z-[100] px-4"
             style={{
-              position: 'fixed', inset: 0,
-              background: 'rgba(0,0,0,0.5)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 100,
-              backdropFilter: 'blur(4px)',
-              padding: '20px'
+              background: isDark ? "rgba(0,0,0,0.6)" : "rgba(15,23,42,0.4)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
             }}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
               onClick={e => e.stopPropagation()}
+              className="w-full max-w-[400px] rounded-[32px] p-8 shadow-2xl relative overflow-hidden"
               style={{
-                background: isDark ? '#1C1C2E' : '#ffffff',
-                borderRadius: '16px',
-                padding: '28px 24px',
-                width: '100%',
-                maxWidth: '380px',
-                boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
-                border: isDark ? '1px solid #2A2A3E' : 'none'
+                background: isDark ? "rgba(30, 30, 42, 0.95)" : "rgba(255, 255, 255, 0.98)",
+                border: isDark ? "1px solid rgba(255,255,255,0.15)" : "1px solid rgba(255,255,255,1)",
               }}
             >
-              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: isDark ? '#fff' : '#101828', marginBottom: '6px' }}>
-                Participar com um código
-              </h2>
-              <p style={{ fontSize: '0.85rem', color: isDark ? '#8896AA' : '#64748B', marginBottom: '20px' }}>
-                Digite o código da reunião
-              </p>
+              {/* Decoration */}
+              <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                <Lock size={120} />
+              </div>
 
-              <input
-                autoFocus
-                type="text"
-                placeholder="abc-defg-hij"
-                value={inputCode}
-                onChange={(e) => setInputCode(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && inputCode.trim()) handleJoinRoom(inputCode) }}
-                style={{
-                  width: '100%',
-                  border: '1.5px solid',
-                  borderColor: isDark ? '#2A2A3E' : '#D1D5DB',
-                  borderRadius: '10px',
-                  padding: '12px 16px',
-                  fontSize: '1rem',
-                  fontFamily: 'system-ui',
-                  color: isDark ? '#fff' : '#101828',
-                  background: isDark ? '#1C1C2E' : '#fff',
-                  outline: 'none',
-                  marginBottom: '16px',
-                  letterSpacing: '0.05em'
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = '#2563EB'}
-                onBlur={(e) => e.currentTarget.style.borderColor = isDark ? '#2A2A3E' : '#D1D5DB'}
-              />
+              <div className="relative z-10 text-center space-y-2 mb-8">
+                <div className="mx-auto w-12 h-12 bg-blue-100 dark:bg-blue-900/40 rounded-full flex items-center justify-center mb-4">
+                  <Lock size={20} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <h2 className="text-xl font-black" style={{ color: isDark ? '#fff' : '#0F172A' }}>
+                  Acesso Restrito
+                </h2>
+                <p className="text-sm font-medium" style={{ color: isDark ? '#9CA3AF' : '#64748B' }}>
+                  Insira o código fornecido pelo líder
+                </p>
+              </div>
 
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => setShowCodeModal(false)}
+              <div className="space-y-6 relative z-10">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="abc-defg-hij"
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && inputCode.trim()) handleJoinRoom(inputCode) }}
+                  className="w-full rounded-2xl px-6 py-4 text-center tracking-widest text-lg outline-none transition-all font-mono font-bold"
                   style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#6B7280',
-                    fontSize: '0.9rem',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    padding: '10px 16px',
-                    borderRadius: '8px',
-                    transition: 'background 0.2s'
+                    background: isDark ? "rgba(0,0,0,0.3)" : "#F8FAFC",
+                    border: isDark ? "2px solid rgba(255,255,255,0.05)" : "2px solid #E2E8F0",
+                    color: isDark ? "#fff" : "#0F172A",
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#F3F4F6'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  Cancelar
-                </button>
-                <button
-                  disabled={!inputCode.trim()}
-                  onClick={() => handleJoinRoom(inputCode)}
-                  style={{
-                    background: '#2563EB',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '999px',
-                    padding: '10px 24px',
-                    fontSize: '0.9rem',
-                    fontWeight: '600',
-                    cursor: inputCode.trim() ? 'pointer' : 'not-allowed',
-                    opacity: inputCode.trim() ? 1 : 0.5,
-                    transition: 'all 0.2s'
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#3B82F6';
+                    e.currentTarget.style.boxShadow = isDark ? '0 0 0 4px rgba(59,130,246,0.1)' : '0 0 0 4px rgba(59,130,246,0.15)';
                   }}
-                >
-                  Participar
-                </button>
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = isDark ? "rgba(255,255,255,0.05)" : "#E2E8F0";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCodeModal(false)}
+                    className="flex-1 rounded-xl py-3.5 font-bold transition-colors"
+                    style={{
+                      background: isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9",
+                      color: isDark ? "#E2E8F0" : "#475569",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.1)" : "#E2E8F0"}
+                    onMouseLeave={e => e.currentTarget.style.background = isDark ? "rgba(255,255,255,0.05)" : "#F1F5F9"}
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    disabled={!inputCode.trim()}
+                    onClick={() => handleJoinRoom(inputCode)}
+                    className="flex-1 rounded-xl py-3.5 font-bold shadow-lg transition-transform active:scale-[0.97]"
+                    style={{
+                      background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
+                      color: "#fff",
+                      opacity: inputCode.trim() ? 1 : 0.5,
+                      cursor: inputCode.trim() ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Participar
+                  </button>
+                </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
