@@ -25,7 +25,7 @@ const ALLOWED_ORIGINS = [
 const corsOptions = {
   origin: (origin: string | undefined, callback: Function) => {
     if (!origin) return callback(null, true); // Postman, mobile apps, SSR
-    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith('.vercel.app')) return callback(null, true);
     console.warn('[CORS] Origem bloqueada:', origin);
     callback(new Error('CORS: origem não permitida'));
   },
@@ -74,9 +74,10 @@ async function startServer() {
     secret: process.env.SESSION_SECRET || 'dmeet-secret-key-spotify',
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 horas
     }
   }));
@@ -346,6 +347,11 @@ async function startServer() {
         room.participants = room.participants.filter((p: any) => p.socketId !== socket.id);
         if (leaving) {
           io.to(code).emit('room:participantLeft', { userId: leaving.userId, total: room.participants.length });
+          
+          if (room.participants.length === 0) {
+            delete rooms[code];
+            if (musicSessions[code]) delete musicSessions[code];
+          }
         }
       });
     });
