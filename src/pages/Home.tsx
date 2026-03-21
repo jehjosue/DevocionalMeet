@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { BookOpen, Plus, ArrowRight, Lock, User, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import DailyVerses from "../components/DailyVerses";
-import FloatingClouds from "../components/FloatingClouds";
+import WhispersOfFaith from "../components/WhispersOfFaith";
 import { useTheme } from "../context/ThemeContext";
 import { createPortal } from "react-dom";
 
@@ -391,7 +391,7 @@ export default function Home() {
         )}
       </div>
 
-      <FloatingClouds />
+      <WhispersOfFaith />
 
       {/* Botão de Toggle de Tema (Glass) */}
       <button
